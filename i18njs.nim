@@ -67,6 +67,8 @@ when defined(js):
   import algorithm
   # import streams
 
+  import jsffi
+
   type
     Hash = int
 
@@ -89,6 +91,7 @@ when defined(js):
         # decoder: EncodingConverter
         # plurals: seq[State]
         # plural_lookup: Table[string, seq[string]]
+        lookup: JsAssoc[cstring, cstring]
         num_plurals: int
         num_entries: int
         # entries: seq[TableEntry]
@@ -96,10 +99,14 @@ when defined(js):
 
     LineInfo = tuple[filename: string, line: int, column: int]
 
-  var CURRENT_CATALOGUE: Catalogue
   var CURRENT_CHARSET = "UTF-8"
   var CURRENT_LOCALE = "C"
   var CURRENTS_LANGS : seq[string] = @[]
+
+  var db = newJsObject()
+
+  proc hasOwnProperty*(x: JsAssoc, prop: cstring): bool
+    {. importcpp: "#.hasOwnProperty(#)" .}
 
 const TABLE_MAXIMUM_LOAD = 0.5
 const MSGCTXT_SEPARATOR = '\4'
@@ -127,6 +134,7 @@ when defined(js):
         filepath:"", key_cache:"", domain:"default",
         # plural_lookup: [("",@[""])].toTable
         )
+  var CURRENT_CATALOGUE = DEFAULT_NULL_CATALOGUE
 
   # let DEFAULT_PLURAL = parseExpr("(n != 1)")
 
@@ -171,10 +179,17 @@ when defined(js):
         let filepos {.gensym.} = info[0] & "(" & $info[1] & ") "
         echo(filepos, message)
 
-  proc dgettext_impl( catalogue: Catalogue;
-                    msgid: string;
-                    info: LineInfo): string {.inline.} =
-    ""
+  proc dgettext_impl(catalogue: Catalogue;
+                     msgid: string;
+                     info: LineInfo): string {.inline.} =
+    debug("gettext: conv(" & msgid, info)
+    if catalogue == DEFAULT_NULL_CATALOGUE:
+        return msgid
+    var raw = cstring(msgid)
+    if catalogue.lookup.hasOwnProperty(raw):
+        return $(catalogue.lookup[raw])
+    return msgid
+
 
   proc dngettext_impl(catalogue: Catalogue;
                     msgid, msgid_plural: string;
