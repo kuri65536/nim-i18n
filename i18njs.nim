@@ -63,9 +63,9 @@
 
 when defined(js):
   import strutils
-  import encodings
+  # import encodings
   import algorithm
-  import streams
+  # import streams
 
   type
     Hash = int
@@ -94,7 +94,12 @@ when defined(js):
         # entries: seq[TableEntry]
         key_cache: string
 
-    LineInfo = tuple[filename: string, line: int]
+    LineInfo = tuple[filename: string, line: int, column: int]
+
+  var CURRENT_CATALOGUE: Catalogue
+  var CURRENT_CHARSET = "UTF-8"
+  var CURRENT_LOCALE = "C"
+  var CURRENTS_LANGS : seq[string] = @[]
 
 const TABLE_MAXIMUM_LOAD = 0.5
 const MSGCTXT_SEPARATOR = '\4'
@@ -117,9 +122,13 @@ const MSGCTXT_SEPARATOR = '\4'
 #~         24  | offset of hashing table                  |  == H
 
 when defined(js):
-  let DEFAULT_NULL_CATALOGUE = Catalogue(filepath:"", entries: @[], key_cache:"", domain:"default", plural_lookup: [("",@[""])].toTable)
+  # let DEFAULT_NULL_CATALOGUE = Catalogue(filepath:"", entries: @[], key_cache:"", domain:"default", plural_lookup: [("",@[""])].toTable)
+  let DEFAULT_NULL_CATALOGUE = Catalogue(
+        filepath:"", key_cache:"", domain:"default",
+        # plural_lookup: [("",@[""])].toTable
+        )
 
-  let DEFAULT_PLURAL = parseExpr("(n != 1)")
+  # let DEFAULT_PLURAL = parseExpr("(n != 1)")
 
 #~proc isStatic(a: string{lit|`const`}): bool {.compileTime.}=
 #~    result = true
@@ -155,11 +164,23 @@ when defined(js):
     new(result)
     ]#
 
+  proc makeDiscardable[T](a: T): T {.discardable, inline.} = a
 
-  template debug(message: expr; info: LineInfo): expr =
+  template debug(message: string; info: LineInfo): void =
     when not defined(release):
         let filepos {.gensym.} = info[0] & "(" & $info[1] & ") "
         echo(filepos, message)
+
+  proc dgettext_impl( catalogue: Catalogue;
+                    msgid: string;
+                    info: LineInfo): string {.inline.} =
+    ""
+
+  proc dngettext_impl(catalogue: Catalogue;
+                    msgid, msgid_plural: string;
+                    num: int;
+                    info: LineInfo): string =
+    ""
 
 
 # gettext functions
@@ -240,12 +261,15 @@ when defined(js):
     ## Sets the current message domain used by **gettext**, **ngettext**, **pgettext**,
     ## **npgettext** functions. Returns ``false`` if catalogue associated with
     ## ``domain`` could not be found.
+    #[
     let catalogue {.gensym.} = set_text_domain_impl(domain, instantiationInfo())
     if not catalogue.isNil: # if catalogue was found
         CURRENT_CATALOGUE = catalogue
         makeDiscardable(true)
     else:
         makeDiscardable(false)
+    ]#
+    makeDiscardable(false)
 
   proc getTextDomain*() : string =
     ## Returns the current message domain used by **gettext**, **ngettext**, **pgettext**,
@@ -260,11 +284,13 @@ when defined(js):
     if domain.len == 0:
         raise newException(ValueError, "Domain name has zero length.")
 
+    #[
     if dir_path.len == 0 or not isAbsolute(dir_path):
         raise newException(ValueError, "'dir_path' argument " &
                 "must be an absolute path; was '" & (dir_path ?? "nil") & "'")
 
     DOMAIN_REFS[domain] = dir_path
+    ]#
 
   proc setTextLocale*(locale="", codeset="") =
     ## Sets text locale used for message translation. ``locale`` must be a valid expression in the form:
@@ -277,7 +303,10 @@ when defined(js):
 
     if locale.len == 0:
         # load user current locale.
+        (locale_expr, codeset_expr) = ("C", "ascii")
+        #[
         (locale_expr, codeset_expr) = get_locale_properties()
+        ]#
 
     else:
         # use user specified locale.
@@ -301,7 +330,10 @@ when defined(js):
                 locale_expr = locale[0..<rid]
             else:
                 locale_expr = locale
+            codeset_expr = "ascii"
+            #[
             codeset_expr = getCurrentEncoding()
+            ]#
 
     CURRENT_LOCALE = locale_expr
     CURRENT_CHARSET = if codeset.len == 0: codeset_expr else: codeset
@@ -332,6 +364,12 @@ when defined(js):
   proc getTextLocale*(): string =
     ## Returns current text locale used for message translation.
     result = CURRENT_LOCALE & '.' & CURRENT_CHARSET
+
+
+  # ECMA Specific {{{1
+  proc toLocalString*(n: int, unit: cstring
+                      ): string {.importcpp: "(@).toLocalString(#)".}
+
 
 proc main() =
 #~    setTextLocale("fr_FR.UTF-8")
