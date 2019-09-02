@@ -85,13 +85,13 @@ when defined(js):
     Catalogue = ref object
         version: uint32
         filepath: string
-        domain: string
-        charset: string
+        domain: cstring
+        charset: cstring
         use_decoder: bool
         # decoder: EncodingConverter
         # plurals: seq[State]
         # plural_lookup: Table[string, seq[string]]
-        lookup: JsAssoc[cstring, cstring]
+        lookup: JsAssoc[cstring, seq[cstring]]
         num_plurals: int
         num_entries: int
         # entries: seq[TableEntry]
@@ -103,10 +103,14 @@ when defined(js):
   var CURRENT_LOCALE = "C"
   var CURRENTS_LANGS : seq[string] = @[]
 
-  var db = newJsObject()
+  var db = newJsAssoc[cstring, Catalogue]()
 
-  proc hasOwnProperty*(x: JsAssoc, prop: cstring): bool
+  proc hasOwnProperty(x: JsAssoc, prop: cstring): bool
     {. importcpp: "#.hasOwnProperty(#)" .}
+
+  proc json_parse(x: cstring): JsObject
+    {. importcpp: "JSON.parse(#)" .}
+
 
 const TABLE_MAXIMUM_LOAD = 0.5
 const MSGCTXT_SEPARATOR = '\4'
@@ -152,6 +156,7 @@ when defined(js):
     if a.len != 0: a else: b
 
 
+  #[
   proc `!&`(h: Hash, val: int): Hash {.inline.} =
       ## mixes a hash value `h` with `val` to produce a new hash value. This is
       ## only needed if you need to implement a hash proc for a new datatype.
@@ -165,12 +170,27 @@ when defined(js):
       result = h +% h shl 3
       result = result xor (result shr 11)
       result = result +% result shl 15
+  ]#
 
-
-  #[
-  proc newCatalogue(domain: string; filename: string) : Catalogue =
+  proc newCatalogue(json: cstring) : Catalogue =
     new(result)
-    ]#
+    try:
+        var data = json_parse(json)
+        result.lookup = data.to(JsAssoc[cstring, seq[cstring]])
+        result.charset = data[""]["Language-Code"].to(cstring)
+        result.domain = data[""]["Domain"].to(cstring)
+        discard jsDelete(result.lookup[""])
+    except:
+        result.filepath = ""
+        return result
+    # TODO(shimoda): result.filepath = $(path)
+
+
+  proc is_valid(self: Catalogue): bool =  # {{{1
+    if self.lookup != nil:
+        return true
+    return false
+
 
   proc makeDiscardable[T](a: T): T {.discardable, inline.} = a
 
@@ -180,14 +200,13 @@ when defined(js):
         echo(filepos, message)
 
   proc dgettext_impl(catalogue: Catalogue;
-                     msgid: string;
-                     info: LineInfo): string {.inline.} =
-    debug("gettext: conv(" & msgid, info)
+                     msgid: cstring;
+                     info: LineInfo): cstring {.inline.} =
+    debug("gettext: conv(" & $msgid, info)
     if catalogue == DEFAULT_NULL_CATALOGUE:
         return msgid
-    var raw = cstring(msgid)
-    if catalogue.lookup.hasOwnProperty(raw):
-        return $(catalogue.lookup[raw])
+    if catalogue.lookup.hasOwnProperty(msgid):
+        return catalogue.lookup[msgid][1]
     return msgid
 
 
@@ -238,7 +257,7 @@ when defined(js):
 #~        echo("string literal ready to hash at compile time!: ", hashval)
     dgettext_impl(CURRENT_CATALOGUE, msgid, instantiationInfo())
 
-  template tr*(msgid: string): string =
+  template tr*(msgid: cstring): cstring =
     ## Alias for **gettext**. usage: tr"msgid"
     # Temporary fix for https://github.com/nim-lang/Nim/issues/4128
     when not defined(release):
@@ -284,12 +303,31 @@ when defined(js):
     else:
         makeDiscardable(false)
     ]#
-    makeDiscardable(false)
+    var key: cstring = domain & "-" & CURRENT_LOCALE
+    if db.hasOwnProperty(key):
+        CURRENT_CATALOGUE = db[key]
+        makeDiscardable(true)
+    else:
+        makeDiscardable(false)
 
   proc getTextDomain*() : string =
     ## Returns the current message domain used by **gettext**, **ngettext**, **pgettext**,
     ## **npgettext** functions.
-    result = CURRENT_CATALOGUE.domain
+    result = $CURRENT_CATALOGUE.domain
+
+
+  proc bindTextDomain*(data, stat: cstring, xhr: JsObject) =
+    var cat = newCatalogue(data)
+    if not cat.is_valid():
+        cat.lookup = nil
+        return
+    var key: cstring = cat.domain & "-" & cat.charset
+    if db.hasOwnProperty(key):
+        discard
+        # debug("override ", instantiationInfo())
+    db[key] = cat
+    debug("registered " & $key, instantiationInfo())
+
 
   proc bindTextDomain*(domain: string; dir_path: string) =
     ## Sets the base folder to look for catalogues associated with ``domain``.
@@ -385,26 +423,31 @@ when defined(js):
   proc toLocalString*(n: int, unit: cstring
                       ): string {.importcpp: "(@).toLocalString(#)".}
 
+# {{{1
+else:  # {{{1
+  import os
+  import strutils
 
-proc main() =
-#~    setTextLocale("fr_FR.UTF-8")
-    setTextLocale()
-#~    bindTextDomain("character_trits", nil)
+  iterator find_source(): File =  # {{{1
+    for f in os.walkDirRec("."):
+        if not f.endsWith(".nim"):
+            continue
+        var fp = newFile(f)
+        yield fp
 
-    bindTextDomain("character_traits", "/home/mo/Prgms/Nimrod/Raonoke/lang")
-    bindTextDomain("meld", "/home/mo/Prgms/Nimrod/Raonoke/tools/gettext")
-    setTextDomain("character_traits")
 
-#~    echo("stormborn: ", tr"brilliant_mind")
-#~    echo("stormborn: ", tr"brilliant_mind")
-#~    echo("stormborn: ", dgettext("meld", "brilliant_mind"))
+  proc extract_translations() =  # {{{1
+    discard
 
-#~    echo("stormborn: ", dngettext("character_traits", "brilliant_mind", "brilliant_mind", 3))
 
-#~    echo("meld: ", dngettext("meld", "%i hour", "%i hours", 2))
+when defined(js):
+  discard
+else:
+  proc main() =  # {{{1
+    for fp in find_source():
+        extract_translations(fp)
 
-    setTextDomain("meld")
-    echo("meld: ", ngettext("%i hour", "%i hours", 2))
 
-when isMainModule:
+  when isMainModule:  # {{{1
     main()
+# vi: ft=nim:nowrap:et:fdm=marker
