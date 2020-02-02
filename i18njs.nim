@@ -1,5 +1,6 @@
 #
 #  Nim gettext-like module
+#  (c) Copyright 2019 shimoda
 #  (c) Copyright 2016 Parashurama
 #
 #  See the file "LICENSE" (MIT)
@@ -425,19 +426,27 @@ when defined(js):
 
 # {{{1
 else:  # {{{1
+  import encodings
   import os
+  import streams
   import strutils
 
-  iterator find_source(): File =  # {{{1
+  var enc = "UTF-8"
+
+  iterator find_source(): FileStream =  # {{{1
     for f in os.walkDirRec("."):
         if not f.endsWith(".nim"):
             continue
-        var fp = newFile(f)
+        echo "[[[" & f & "]]]"
+        var fp = newFileStream(f, fmRead)
         yield fp
 
 
-  proc extract_translations() =  # {{{1
-    discard
+  proc extract_translations(fp: FileStream) =  # {{{1
+    var conv = encodings.open(srcEncoding=enc, destEncoding=enc)
+    var line: string
+    while fp.readLine(line):
+        echo conv.convert(line)
 
 
 when defined(js):
