@@ -142,7 +142,7 @@ proc `==`(self, other: Catalogue): bool =
 template `??`(a, b: string): string =
     if a.len != 0: a else: b
 
-proc c_memchr(cstr: pointer, c: char, n: csize_t): pointer {.
+proc c_memchr(cstr: pointer, c: char, n: csize): pointer {.
        importc: "memchr", header: "<string.h>" .}
 
 
@@ -338,7 +338,7 @@ proc newCatalogue(domain: string; filename: string) : Catalogue =
         var vlength = value_entries[i].length.int
 
         # looks for NULL byte in key
-        var null_byte = c_memchr(result.key_cache[koffset].addr, '\0', klength.csize_t)
+        var null_byte = c_memchr(result.key_cache[koffset].addr, '\0', klength.csize)
         if null_byte != nil: # key has plural
             let ksplit = cast[ByteAddress](null_byte) -% cast[ByteAddress](result.key_cache[0].addr)
 
@@ -350,7 +350,7 @@ proc newCatalogue(domain: string; filename: string) : Catalogue =
             var remaining = vlength
             var index = 0
             while true:
-                var null_byte = c_memchr(value_cache[voffset].addr, '\0', (remaining + 1).csize_t)
+                var null_byte = c_memchr(value_cache[voffset].addr, '\0', (remaining + 1).csize)
                 if null_byte == nil or remaining <= 0:
                     break
                 let vsplit = cast[ByteAddress](null_byte) -% cast[ByteAddress](value_cache[0].addr)
