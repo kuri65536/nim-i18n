@@ -90,19 +90,6 @@ when not defined(js):
         key: StringEntry
         value: string
 
-    Catalogue = ref object
-        version: uint32
-        filepath: string
-        domain: string
-        charset: string
-        use_decoder: bool
-        decoder: EncodingConverter
-        plurals: seq[State]
-        plural_lookup: Table[string, seq[string]]
-        num_plurals: int
-        num_entries: int
-        entries: seq[TableEntry]
-        key_cache: string
 else:
   type
     StringEntry {.pure final.} = object
@@ -113,13 +100,26 @@ else:
         key: StringEntry
         value: string
 
+type
     Catalogue = ref object
+      when true:
         version: uint32
+
+      when not defined(js):
         filepath: string
+        domain: string
+        charset: string
+        use_decoder: bool
+        decoder: EncodingConverter
+        plurals: seq[State]
+        plural_lookup: Table[string, seq[string]]
+      else:
+        lookup_db: JsAssoc[cstring, seq[cstring]]
         domain: cstring
         charset: cstring
         use_decoder: bool
-        lookup: JsAssoc[cstring, seq[cstring]]
+
+      when true:
         num_plurals: int
         num_entries: int
         key_cache: string
@@ -166,7 +166,7 @@ const MSGCTXT_SEPARATOR = '\4'
 
 when defined(js):
   let DEFAULT_NULL_CATALOGUE = Catalogue(
-        filepath:"", key_cache:"", domain:"default",
+        key_cache:"", domain:"default",
         # plural_lookup: [("",@[""])].toTable
         )
   var
@@ -217,27 +217,6 @@ proc `!$`(h: Hash): Hash {.inline.} =
       result = h +% h shl 3
       result = result xor (result shr 11)
       result = result +% result shl 15
-
-
-when defined(js):
-  proc newCatalogue(json: cstring) : Catalogue =
-    new(result)
-    try:
-        var data = json_parse(json)
-        result.lookup = data.to(JsAssoc[cstring, seq[cstring]])
-        result.charset = data[""]["Language-Code"].to(cstring)
-        result.domain = data[""]["Domain"].to(cstring)
-        discard jsDelete(result.lookup[""])
-    except:
-        result.filepath = ""
-        return result
-    # TODO(shimoda): result.filepath = $(path)
-
-
-  proc is_valid(self: Catalogue): bool =  # {{{1
-    if self.lookup != nil:
-        return true
-    return false
 
 
 proc get(self: StringEntry; cache: string): string =
@@ -312,9 +291,12 @@ proc get_bucket(self: Catalogue; key: string): int =
     return index;
 
 proc lookup(self: Catalogue; key: string): string =
+  when not defined(js):
     let index = self.get_bucket(key)
     if index != -1:
         shallowCopy result, self.entries[index].value
+  else:
+    return $self.lookup_db[key]
 
 
 when not defined(js):
@@ -451,6 +433,26 @@ when not defined(js):
                           value_cache[voffset..<voffset+vlength])
     f.close()
 
+else:
+  proc newCatalogue(json: cstring) : Catalogue =
+    new(result)
+    try:
+        var data = json_parse(json)
+        result.lookup_db = data.to(JsAssoc[cstring, seq[cstring]])
+        result.charset = data[""]["Language-Code"].to(cstring)
+        result.domain = data[""]["Domain"].to(cstring)
+        discard jsDelete(result.lookup_db[""])
+    except:
+        return result
+    # TODO(shimoda): result.filepath = $(path)
+
+
+  proc is_valid(self: Catalogue): bool =  # {{{1
+    if self.lookup_db != nil:
+        return true
+    return false
+
+
 
 
 # Helpers for gettext functions
@@ -520,13 +522,17 @@ when not defined(js):
     result[1] = if codesets.len != 0: codesets[0] else: getCurrentEncoding()
 
 
-  proc decode_impl(catalogue: Catalogue; translation: string): string {.inline.}=
+proc decode_impl(catalogue: Catalogue; translation: string): string {.inline.}=
+  when not defined(js):
     if catalogue.use_decoder:
         shallowCopy result, catalogue.decoder.convert(translation)
     else:
         shallowCopy result, translation
+  else:
+    shallowCopy result, translation
 
-  proc dgettext_impl( catalogue: Catalogue;
+
+proc dgettext_impl( catalogue: Catalogue;
                     msgid: string;
                     info: LineInfo): string {.inline.} =
     shallowCopy result, catalogue.lookup(msgid)
@@ -655,10 +661,10 @@ proc getTextDomain*() : string =
 
 
 when defined(js):
-  proc bindTextDomain*(data, stat: cstring, xhr: JsObject) =
+  proc bindTextDomain*(data: cstring) =
     var cat = newCatalogue(data)
     if not cat.is_valid():
-        cat.lookup = nil
+        cat.lookup_db = nil
         return
     var key: cstring = cat.domain & "-" & cat.charset
     if db.hasOwnProperty(key):
