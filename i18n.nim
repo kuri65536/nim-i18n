@@ -220,7 +220,12 @@ proc `!$`(h: Hash): Hash {.inline.} =
 
 
 proc get(self: StringEntry; cache: string): string =
+  when NimMajor < 2:
     shallowCopy(result, cache[self.offset.int..<self.offset.int+self.length.int])
+  else:
+    ## @todo v2.0 shallowCOpy in nim 2.0 or later
+    result = cache[self.offset.int..<self.offset.int+self.length.int]
+
 
 proc equal(self: StringEntry; other: string; cache: string): bool =
   when not defined(js):
@@ -269,8 +274,13 @@ proc insert(self: Catalogue; key: StringEntry; value: string) =
     if index == -1:
         quit("failure to insert key!")
     else:
+      block:
         self.entries[index].key = key
+      when NimMajor < 2:
         shallowCopy self.entries[index].value, value
+      else:
+        ## @todo v2.0 shallowCopy in nim 2.0 or laters.
+        self.entries[index].value = value
 
 
 proc get_bucket(self: Catalogue; key: string): int =
@@ -294,7 +304,11 @@ proc lookup(self: Catalogue; key: string): string =
   when not defined(js):
     let index = self.get_bucket(key)
     if index != -1:
+      when NimMajor < 2:
         shallowCopy result, self.entries[index].value
+      else:
+        ## @todo v2.0 shallowCopy in nim 2.0 or laters.
+        result = self.entries[index].value
   else:
     return $self.lookup_db[key]
 
@@ -405,6 +419,7 @@ when not defined(js):
         # looks for NULL byte in key
         var null_byte = c_memchr(result.key_cache[koffset].addr, '\0', klength.csize)
         if null_byte != nil: # key has plural
+          let (key, val) = block:
             let ksplit = cast[ByteAddress](null_byte) -% cast[ByteAddress](result.key_cache[0].addr)
 
             let plural_msg = result.key_cache[koffset..<ksplit]
@@ -421,12 +436,23 @@ when not defined(js):
                 let vsplit = cast[ByteAddress](null_byte) -% cast[ByteAddress](value_cache[0].addr)
 
                 if index <= plurals.high : # if msgid has more plurals than declared, ignore.
+                  when NimMajor < 2:
                     shallowCopy plurals[index], value_cache[voffset..<vsplit]
+                  else:
+                    ## @todo v2.0 shallowCopy in nim 2.0 or laters.
+                    plurals[index] = value_cache[voffset..<vsplit]
                 remaining -= vsplit - voffset + 1
                 voffset = vsplit + 1
                 index += 1
 
+            (plural_msg, plurals)
+
+          when NimMajor < 2:
+            let (plural_msg, plurals) = (key, val)
             shallowCopy result.plural_lookup[plural_msg], plurals
+          else:
+            ## @todo v2.0 shallowCopy in nim 2.0 or laters.
+            result.plural_lookup[key] = val
 
         else: # key has no plural, simple result
             result.insert( StringEntry(offset: koffset.uint32, length: klength.uint32),
@@ -525,9 +551,17 @@ when not defined(js):
 proc decode_impl(catalogue: Catalogue; translation: string): string {.inline.}=
   when not defined(js):
     if catalogue.use_decoder:
+      when NimMajor < 2:
         shallowCopy result, catalogue.decoder.convert(translation)
+      else:
+        ## @todo v2.0 shallowCopy in nim 2.0 or laters.
+        result = catalogue.decoder.convert(translation)
     else:
+      when NimMajor < 2:
         shallowCopy result, translation
+      else:
+        ## @todo v2.0 shallowCopy in nim 2.0 or laters.
+        result = translation
   else:
     shallowCopy result, translation
 
@@ -535,11 +569,21 @@ proc decode_impl(catalogue: Catalogue; translation: string): string {.inline.}=
 proc dgettext_impl( catalogue: Catalogue;
                     msgid: string;
                     info: LineInfo): string {.inline.} =
+  when NimMajor < 2:
     shallowCopy result, catalogue.lookup(msgid)
+  else:
+    ## @todo v2.0 shallowCopy in nim 2.0 or laters.
+    result = catalogue.lookup(msgid)
+  block:
     if result == "":
+      block:
         debug("Warning: translation not found! : " &
               "'$#' in domain '$#'".format(msgid, catalogue.domain), info)
+      when NimMajor < 2:
         shallowCopy result, catalogue.decode_impl(msgid)
+      else:
+        ## @todo v2.0 shallowCopy in nim 2.0 or laters.
+        result = catalogue.decode_impl(msgid)
 
 
 when not defined(js):
@@ -552,15 +596,30 @@ when not defined(js):
         debug("Warning: translation not found! : " &
               "'$#/$#' in domain '$#'".format(msgid, msgid_plural, catalogue.domain), info)
         if num == 1:
+          when NimMajor < 2:
             shallowCopy result, msgid
+          else:
+            ## @todo v2.0 shallowCopy in nim 2.0 or laters.
+            result = msgid
         else:
+          when NimMajor < 2:
             shallowCopy result, msgid_plural
+          else:
+            ## @todo v2.0 shallowCopy in nim 2.0 or laters.
+            result = msgid_plural
     else:
+      let a = block:
         var index = catalogue.plurals.evaluate(num)
         if index >= catalogue.num_plurals:
             index = 0
         let pl = plurals[index] ?? plurals[0]
+        pl
+      let pl = a
+      when NimMajor < 2:
         shallowCopy result, catalogue.decode_impl(pl)
+      else:
+        ## @todo v2.0 shallowCopy in nim 2.0 or laters.
+        result = catalogue.decode_impl(pl)
 else:
   proc dngettext_impl(catalogue: Catalogue;
                     msgid, msgid_plural: string;
