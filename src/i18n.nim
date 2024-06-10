@@ -830,27 +830,3 @@ when defined(js):
                       ): string {.importcpp: "(@).toLocalString(#)".}
 
 
-proc main() =
-#~    setTextLocale("fr_FR.UTF-8")
-    setTextLocale()
-#~    bindTextDomain("character_trits", nil)
-
-    bindTextDomain("character_traits", "/home/mo/Prgms/Nimrod/Raonoke/lang")
-    bindTextDomain("meld", "/home/mo/Prgms/Nimrod/Raonoke/tools/gettext")
-    setTextDomain("character_traits")
-
-#~    echo("stormborn: ", tr"brilliant_mind")
-#~    echo("stormborn: ", tr"brilliant_mind")
-#~    echo("stormborn: ", dgettext("meld", "brilliant_mind"))
-
-#~    echo("stormborn: ", dngettext("character_traits", "brilliant_mind", "brilliant_mind", 3))
-
-#~    echo("meld: ", dngettext("meld", "%i hour", "%i hours", 2))
-
-    setTextDomain("meld")
-    echo("meld: ", ngettext("%i hour", "%i hours", 2))
-
-when isMainModule:
-    main()
-
-# vi: ft=nim:nowrap:et:fdm=marker
