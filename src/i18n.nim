@@ -1,6 +1,6 @@
 #
 #  Nim gettext-like module
-#  (c) Copyright 2019 shimoda
+#  (c) Copyright 2024, 2019 shimoda
 #  (c) Copyright 2016 Parashurama
 #
 #  See the file "LICENSE" (MIT)
@@ -70,7 +70,7 @@ when not defined(js):
   import os
   import strutils
   import streams
-  import private/plural
+  import i18n/private/plural
 
 else:
   import jsffi
