@@ -1,3 +1,5 @@
+*.mo
+.tmp
 nimcache
 testresults
 tests/c/test

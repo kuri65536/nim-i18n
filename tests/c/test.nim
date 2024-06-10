@@ -12,9 +12,9 @@ import ../../src/i18n
 
 
 proc path1(): string =
-    result = joinPath(getAppDir(), "data/lang")
+    result = joinPath(getAppDir(), "../data/lang")
 proc path2(): string =
-    result = joinPath(getAppDir(), "data/tools/gettext")
+    result = joinPath(getAppDir(), "../data/tools/gettext")
 
 
 test "setTextLocale - no-args":
