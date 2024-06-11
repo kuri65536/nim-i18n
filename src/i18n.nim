@@ -199,8 +199,14 @@ proc `==`(self, other: Catalogue): bool =
 template `??`(a, b: string): string =
     if a.len != 0: a else: b
 
-when not defined(js):
+
+when defined(js):
+  discard
+elif NimMajor == 0 and NimMinor == 19:
   proc c_memchr(cstr: pointer, c: char, n: csize): pointer {.
+       importc: "memchr", header: "<string.h>" .}
+else:
+  proc c_memchr(cstr: pointer, c: char, n: csize_t): pointer {.
        importc: "memchr", header: "<string.h>" .}
 
 
@@ -412,12 +418,15 @@ when not defined(js):
     # Add entries in Catalogue, skip first entry (Metadata)
     for i in 1..<result.num_entries.int:
         var koffset = key_entries[i].offset.int
-        var klength = key_entries[i].length.int
+        let (klen1, klen2) = block:
+                                let tmp = key_entries[i].length
+                                when NimMajor >= 2: (csize_t(tmp), uint32(tmp))
+                                else:               (csize(tmp), uint32(tmp))
         var voffset = value_entries[i].offset.int
         var vlength = value_entries[i].length.int
 
         # looks for NULL byte in key
-        var null_byte = c_memchr(result.key_cache[koffset].addr, '\0', klength.csize)
+        var null_byte = c_memchr(result.key_cache[koffset].addr, '\0', klen1)
         if null_byte != nil: # key has plural
           let (key, val) = block:
             let ksplit = cast[ByteAddress](null_byte) -% cast[ByteAddress](result.key_cache[0].addr)
@@ -427,10 +436,14 @@ when not defined(js):
             var plurals = newSeq[string](result.num_plurals)
 
             # look for NULL byte in value
+            let remaining1 = block:
+                                let tmp = vlength + 1
+                                when NimMajor >= 2: tmp.csize_t
+                                else:               tmp.csize
             var remaining = vlength
             var index = 0
             while true:
-                var null_byte = c_memchr(value_cache[voffset].addr, '\0', (remaining + 1).csize)
+                var null_byte = c_memchr(value_cache[voffset].addr, '\0', remaining1)
                 if null_byte == nil or remaining <= 0:
                     break
                 let vsplit = cast[ByteAddress](null_byte) -% cast[ByteAddress](value_cache[0].addr)
@@ -455,7 +468,7 @@ when not defined(js):
             result.plural_lookup[key] = val
 
         else: # key has no plural, simple result
-            result.insert( StringEntry(offset: koffset.uint32, length: klength.uint32),
+            result.insert( StringEntry(offset: koffset.uint32, length: klen2),
                           value_cache[voffset..<voffset+vlength])
     f.close()
 
