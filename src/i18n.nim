@@ -210,6 +210,15 @@ else:
        importc: "memchr", header: "<string.h>" .}
 
 
+when NimMajor < 2:
+  proc addr_offset(tail, head: pointer): ByteAddress {.inline.} =
+      result = cast[ByteAddress](tail) -% cast[ByteAddress](head)
+
+else:
+  proc addr_offset(tail, head: pointer): int {.inline.} =
+      result = cast[int](tail) -% cast[int](head)
+
+
 proc `!&`(h: Hash, val: int): Hash {.inline.} =
       ## mixes a hash value `h` with `val` to produce a new hash value. This is
       ## only needed if you need to implement a hash proc for a new datatype.
@@ -429,8 +438,7 @@ when not defined(js):
         var null_byte = c_memchr(result.key_cache[koffset].addr, '\0', klen1)
         if null_byte != nil: # key has plural
           let (key, val) = block:
-            let ksplit = cast[ByteAddress](null_byte) -% cast[ByteAddress](result.key_cache[0].addr)
-
+            let ksplit = addr_offset(null_byte, result.key_cache[0].addr)
             let plural_msg = result.key_cache[koffset..<ksplit]
 #~            let plural_msg = result.key_cache[ksplit + 1..<koffset+klength]
             var plurals = newSeq[string](result.num_plurals)
@@ -446,7 +454,7 @@ when not defined(js):
                 var null_byte = c_memchr(value_cache[voffset].addr, '\0', remaining1)
                 if null_byte == nil or remaining <= 0:
                     break
-                let vsplit = cast[ByteAddress](null_byte) -% cast[ByteAddress](value_cache[0].addr)
+                let vsplit = addr_offset(null_byte, value_cache[0].addr)
 
                 if index <= plurals.high : # if msgid has more plurals than declared, ignore.
                   when NimMajor < 2:
