@@ -76,12 +76,12 @@ else:
   import jsffi
   import strutils
 
+  import i18n/i18n_js
+
 
 type
     Hash = int
 
-when not defined(js):
-  type
     StringEntry {.pure final.} = object
         length: uint32
         offset: uint32
@@ -90,22 +90,9 @@ when not defined(js):
         key: StringEntry
         value: string
 
-else:
-  type
-    StringEntry {.pure final.} = object
-        length: uint32
-        offset: uint32
-
-    TableEntry {.pure final.} = object
-        key: StringEntry
-        value: string
-
-type
     Catalogue = ref object
-      when true:
         version: uint32
 
-      when not defined(js):
         filepath: string
         domain: string
         charset: string
@@ -113,35 +100,23 @@ type
         decoder: EncodingConverter
         plurals: seq[State]
         plural_lookup: Table[string, seq[string]]
-      else:
-        lookup_db: JsAssoc[cstring, seq[cstring]]
-        domain: cstring
-        charset: cstring
-        use_decoder: bool
 
-      when true:
         num_plurals: int
         num_entries: int
         key_cache: string
         entries: seq[TableEntry]
 
-
-type
     LineInfo = tuple[filename: string, line: int, column: int]
 
 
 when defined(js):
-  var CURRENT_CHARSET = "UTF-8"
-  var CURRENT_LOCALE = "C"
-  var CURRENTS_LANGS : seq[string] = @[]
+  export bindTextDomain
+  export toLocalString
 
-  var db = newJsAssoc[cstring, Catalogue]()
-
-  proc hasOwnProperty(x: JsAssoc, prop: cstring): bool
-    {. importcpp: "#.hasOwnProperty(#)" .}
-
-  proc json_parse(x: cstring): JsObject
-    {. importcpp: "JSON.parse(#)" .}
+else:
+  template getCurrentEncodingEx(): untyped =
+    getCurrentEncoding()
+    
 
 
 const TABLE_MAXIMUM_LOAD = 0.5
@@ -164,17 +139,7 @@ const MSGCTXT_SEPARATOR = '\4'
 #~             |                                          |
 #~         24  | offset of hashing table                  |  == H
 
-when defined(js):
-  let DEFAULT_NULL_CATALOGUE = Catalogue(
-        key_cache:"", domain:"default",
-        # plural_lookup: [("",@[""])].toTable
-        )
-  var
-    CURRENT_CATALOGUE = DEFAULT_NULL_CATALOGUE
-    CATALOGUE_REFS = initTable[string, Catalogue]()
-    DOMAIN_REFS = initTable[string, string]()
-else:
-  var
+var
     DOMAIN_REFS = initTable[string, string]()
     CATALOGUE_REFS = initTable[string, Catalogue]()
     #[
@@ -187,7 +152,10 @@ else:
     DEFAULT_LOCALE_DIR = "/usr/share/locale"
     DEFAULT_NULL_CATALOGUE = Catalogue(filepath:"", entries: @[], key_cache:"", domain:"default", plural_lookup: [("",@[""])].toTable)
 
-  let DEFAULT_PLURAL = parseExpr("(n != 1)")
+let
+    DEFAULT_PLURAL = parseExpr("(n != 1)")
+
+
 
 #~proc isStatic(a: string{lit|`const`}): bool {.compileTime.}=
 #~    result = true
@@ -245,17 +213,11 @@ when false:
     result = cache[self.offset.int..<self.offset.int+self.length.int]
 
 
-proc equal(self: StringEntry; other: string; cache: string): bool =
-  when not defined(js):
+when not defined(js):
+  proc equal(self: StringEntry; other: string; cache: string): bool =
     if self.length.int == other.len:
         return equalMem(cache[self.offset.int].unsafeAddr, other[0].unsafeAddr, other.len)
     return false
-  else:
-    let offset = self.offset.int
-    for i in 0..<self.length.int:
-        if cache[offset + i] != other[i]:
-            return false
-    return true
 
 proc hash(self: StringEntry; cache: string): Hash =
   ## efficient hashing of StringEntry
@@ -318,8 +280,9 @@ proc get_bucket(self: Catalogue; key: string): int =
 
     return index;
 
-proc lookup(self: Catalogue; key: string): string =
-  when not defined(js):
+
+when not defined(js):
+  proc lookup(self: Catalogue; key: string): string =
     let index = self.get_bucket(key)
     if index != -1:
       when NimMajor < 2:
@@ -327,11 +290,8 @@ proc lookup(self: Catalogue; key: string): string =
       else:
         ## @todo v2.0 shallowCopy in nim 2.0 or laters.
         result = self.entries[index].value
-  else:
-    return $self.lookup_db[key]
 
 
-when not defined(js):
   proc read_string_table(f: FileStream; table_size: int; entries_size: var int; entries_offset: var int):seq[StringEntry] =
 
     result = newSeq[StringEntry](table_size)
@@ -483,27 +443,6 @@ when not defined(js):
                           value_cache[voffset..<voffset+vlength])
     f.close()
 
-else:
-  proc newCatalogue(json: cstring) : Catalogue =
-    new(result)
-    try:
-        var data = json_parse(json)
-        result.lookup_db = data.to(JsAssoc[cstring, seq[cstring]])
-        result.charset = data[""]["Language-Code"].to(cstring)
-        result.domain = data[""]["Domain"].to(cstring)
-        discard jsDelete(result.lookup_db[""])
-    except:
-        return result
-    # TODO(shimoda): result.filepath = $(path)
-
-
-  proc is_valid(self: Catalogue): bool =  # {{{1
-    if self.lookup_db != nil:
-        return true
-    return false
-
-
-
 
 # Helpers for gettext functions
 
@@ -514,8 +453,9 @@ template debug(message: untyped; info: LineInfo): untyped =
         let filepos {.gensym.} = info[0] & "(" & $info[1] & ") "
         echo(filepos, message)
 
-proc find_catalogue(localedir, domain: string; locales: seq[string]): string =
-  when not defined(js):
+
+when not defined(js):
+  proc find_catalogue(localedir, domain: string; locales: seq[string]): string =
     let domain_file = "LC_MESSAGES" & DirSep & domain & ".mo"
     result = ""
 
@@ -532,15 +472,11 @@ proc find_catalogue(localedir, domain: string; locales: seq[string]): string =
         if is_exist:
             return # return catalogue path
     result = ""
-  else:
-    result = ""
 
 
-proc set_text_domain_impl(domain: string; info: LineInfo) : Catalogue =
-  when true:
+  proc set_text_domain_impl(domain: string; info: LineInfo) : Catalogue =
     result = CATALOGUE_REFS.getOrDefault(domain)
 
-  when not defined(js):
     if result == nil: # domain not found in list of loaded catalogues.
         let localedir = DOMAIN_REFS.getOrDefault(domain) # try lookup domain in registered domains.
         let file_path = find_catalogue(localedir ?? DEFAULT_LOCALE_DIR, domain, CURRENTS_LANGS)
@@ -552,12 +488,8 @@ proc set_text_domain_impl(domain: string; info: LineInfo) : Catalogue =
         else:
             result = newCatalogue(domain, file_path)
             CATALOGUE_REFS[domain] = result
-  else:
-    if result == nil:
-        result = DEFAULT_NULL_CATALOGUE
 
 
-when not defined(js):
   proc get_locale_properties(): (string, string) =
     var locales: seq[string] = @[]
     var codesets: seq[string] = @[]
@@ -574,8 +506,7 @@ when not defined(js):
     result[1] = if codesets.len != 0: codesets[0] else: getCurrentEncoding()
 
 
-proc decode_impl(catalogue: Catalogue; translation: string): string {.inline.}=
-  when not defined(js):
+  proc decode_impl(catalogue: Catalogue; translation: string): string {.inline.}=
     if catalogue.use_decoder:
       when NimMajor < 2:
         shallowCopy result, catalogue.decoder.convert(translation)
@@ -588,19 +519,18 @@ proc decode_impl(catalogue: Catalogue; translation: string): string {.inline.}=
       else:
         ## @todo v2.0 shallowCopy in nim 2.0 or laters.
         result = translation
-  else:
-    shallowCopy result, translation
 
 
-proc dgettext_impl( catalogue: Catalogue;
+when not defined(js):
+  proc dgettext_impl( catalogue: Catalogue;
                     msgid: string;
                     info: LineInfo): string {.inline.} =
-  when NimMajor < 2:
+   when NimMajor < 2:
     shallowCopy result, catalogue.lookup(msgid)
-  else:
+   else:
     ## @todo v2.0 shallowCopy in nim 2.0 or laters.
     result = catalogue.lookup(msgid)
-  block:
+   block:
     if result == "":
       block:
         debug("Warning: translation not found! : " &
@@ -612,7 +542,6 @@ proc dgettext_impl( catalogue: Catalogue;
         result = catalogue.decode_impl(msgid)
 
 
-when not defined(js):
   proc dngettext_impl(catalogue: Catalogue;
                     msgid, msgid_plural: string;
                     num: int;
@@ -646,12 +575,6 @@ when not defined(js):
       else:
         ## @todo v2.0 shallowCopy in nim 2.0 or laters.
         result = catalogue.decode_impl(pl)
-else:
-  proc dngettext_impl(catalogue: Catalogue;
-                    msgid, msgid_plural: string;
-                    num: int;
-                    info: LineInfo): string =
-    ""
 
 
 # gettext functions
@@ -745,22 +668,8 @@ proc getTextDomain*() : string =
     result = $CURRENT_CATALOGUE.domain
 
 
-when defined(js):
-  proc bindTextDomain*(data: cstring) =
-    var cat = newCatalogue(data)
-    if not cat.is_valid():
-        cat.lookup_db = nil
-        return
-    var key: cstring = cat.domain & "-" & cat.charset
-    if db.hasOwnProperty(key):
-        discard
-        # debug("override ", instantiationInfo())
-    db[key] = cat
-    debug("registered " & $key, instantiationInfo())
-
-
-proc bindTextDomain*(domain: string; dir_path: string) =
-  when true:
+when not defined(js):
+  proc bindTextDomain*(domain: string; dir_path: string) =
     ## Sets the base folder to look for catalogues associated with ``domain``.
     ## ``dir_path`` must be an absolute path.
     ## Catalogues search path is in the form:
@@ -768,7 +677,6 @@ proc bindTextDomain*(domain: string; dir_path: string) =
     if domain.len == 0:
         raise newException(ValueError, "Domain name has zero length.")
 
-  when not defined(js):
     if dir_path.len == 0 or not isAbsolute(dir_path):
         raise newException(ValueError, "'dir_path' argument " &
                 "must be an absolute path; was '" & (dir_path ?? "nil") & "'")
@@ -785,12 +693,8 @@ proc setTextLocale*(locale="", codeset="") =
     var locale_expr, codeset_expr: string
 
     if locale.len == 0:
-      when not defined(js):
         # load user current locale.
         (locale_expr, codeset_expr) = get_locale_properties()
-      else:
-        (locale_expr, codeset_expr) = ("C", "ascii")
-
 
     else:
         # use user specified locale.
@@ -814,10 +718,7 @@ proc setTextLocale*(locale="", codeset="") =
                 locale_expr = locale[0..<rid]
             else:
                 locale_expr = locale
-            when not defined(js):
-              codeset_expr = getCurrentEncoding()
-            else:
-              codeset_expr = "ascii"
+            codeset_expr = getCurrentEncodingEx()
 
     CURRENT_LOCALE = locale_expr
     CURRENT_CHARSET = if codeset.len == 0: codeset_expr else: codeset
@@ -848,11 +749,5 @@ proc setTextLocale*(locale="", codeset="") =
 proc getTextLocale*(): string =
     ## Returns current text locale used for message translation.
     result = CURRENT_LOCALE & '.' & CURRENT_CHARSET
-
-
-when defined(js):
-  # ECMA Specific {{{1
-  proc toLocalString*(n: int, unit: cstring
-                      ): string {.importcpp: "(@).toLocalString(#)".}
 
 
