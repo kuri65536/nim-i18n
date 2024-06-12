@@ -80,26 +80,3 @@ test "dgettext - translate with an another domain":
     #cho("stormborn: ", dgettext("meld", "brilliant_mind"))
 
 
-test "dngettext - ":
-    setTextLocale("fr_FR.UTF-8")
-    bindTextDomain("character_traits", path1())
-    bindTextDomain("meld", path2())
-    setTextDomain("character_traits")
-
-    let ans = dngettext("meld", "%u hour", "%u hours", 2)
-    check("2 heures" == ans)
-    #cho("meld: ", ans)
-
-
-test "ngettext - ":
-    setTextLocale("fr_FR.UTF-8")
-    bindTextDomain("character_traits", path1())
-    bindTextDomain("meld", path2())
-    setTextDomain("meld")
-
-    let ans = ngettext("%u hour", "%u hours", 2)
-    check("2 heures" == ans)
-    #cho("meld: ", ngettext("%u hour", "%u hours", 2))
-
-
-

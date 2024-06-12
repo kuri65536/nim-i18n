@@ -5,5 +5,6 @@ nimcache
 testresults
 testresults.html
 tests/c/test
+tests/c/test_ngettext
 tests/js/*.js
 
