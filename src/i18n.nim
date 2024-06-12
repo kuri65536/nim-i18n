@@ -116,7 +116,6 @@ when defined(js):
 else:
   template getCurrentEncodingEx(): untyped =
     getCurrentEncoding()
-    
 
 
 const TABLE_MAXIMUM_LOAD = 0.5
@@ -575,6 +574,8 @@ when not defined(js):
       else:
         ## @todo v2.0 shallowCopy in nim 2.0 or laters.
         result = catalogue.decode_impl(pl)
+    result = result.replace("%d", $num)
+    result = result.replace("%u", $num)
 
 
 # gettext functions
