@@ -9,12 +9,10 @@ edit:
 	editor $(pot2)
 
 
-dir1:=lang
-dir2:=tools/gettext
-pot1:=$(dir1)/character_traits.pot
-pot2:=$(dir2)/meld.pot
-po1:=$(dir $(pot1))fr/LC_MESSAGES/$(patsubst %.pot,%.po,$(notdir $(pot1)))
-po2:=$(dir $(pot1))fr/LC_MESSAGES/$(patsubst %.pot,%.po,$(notdir $(pot2)))
+pot1:=lang/character_traits.pot
+pot2:=tools/gettext/meld.pot
+po1:=$(dir $(pot1))fr/LC_MESSAGES/$(subst .pot,.po,$(notdir $(pot1)))
+po2:=$(dir $(pot2))fr/LC_MESSAGES/$(subst .pot,.po,$(notdir $(pot2)))
 mo1:=$(subst .po,.mo,$(po1))
 mo2:=$(subst .po,.mo,$(po2))
 

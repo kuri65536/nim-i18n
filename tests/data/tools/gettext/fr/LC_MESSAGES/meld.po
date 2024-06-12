@@ -22,8 +22,8 @@ msgstr ""
 msgid "brilliant_mind"
 msgstr "esprit m brillante"
 
-msgid "%d hour"
-msgid_plural "%d hours"
+#, fuzzy
+msgid "%u hour"
+msgid_plural "%u hours"
 msgstr[0] "%d heure"
 msgstr[1] "%d heurese"
-
