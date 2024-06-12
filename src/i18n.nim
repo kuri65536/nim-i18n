@@ -177,7 +177,9 @@ else:
   var
     DOMAIN_REFS = initTable[string, string]()
     CATALOGUE_REFS = initTable[string, Catalogue]()
+    #[
     CURRENT_DOMAIN_REF: string
+    ]#
     CURRENT_CATALOGUE: Catalogue
     CURRENT_CHARSET = "UTF-8"
     CURRENT_LOCALE = "C"
@@ -234,7 +236,8 @@ proc `!$`(h: Hash): Hash {.inline.} =
       result = result +% result shl 15
 
 
-proc get(self: StringEntry; cache: string): string =
+when false:
+ proc get(self: StringEntry; cache: string): string =
   when NimMajor < 2:
     shallowCopy(result, cache[self.offset.int..<self.offset.int+self.length.int])
   else:
@@ -524,7 +527,9 @@ proc find_catalogue(localedir, domain: string; locales: seq[string]): string =
         result.add(DirSep)
         result.add(domain_file)
 
-        if existsFile(result):
+        let is_exist = when NimMajor < 2: existsFile(result)
+                       else:              fileExists(result)
+        if is_exist:
             return # return catalogue path
     result = ""
   else:
