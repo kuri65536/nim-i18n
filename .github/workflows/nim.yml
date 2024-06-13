@@ -1,0 +1,33 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        nimver: ["0.19.4", "1.2.18", "2.0.4"]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: download nim
+      run:  curl -o nim-src.txz https://nim-lang.org/download/nim-${{matrix.nimver}}.tar.xz
+    - name: extract nim
+      run:  tar xvfJ nim-src.txz --strip-components=1 -C nim-src
+    - name: build nim
+      run:  cd nim-src; ./build.sh
+    - name: build koch
+      run:  cd nim-src; ./bin/nim koch
+    - name: build tools
+      run:  cd nim-src; koch tools
+    - name: build data
+      run:  make -C tests/data
+    - name: run tests
+      run:  ./nim-src/bin/testament pattern 'tests/**/*.nim'
+    - name: make html
+      run:  ./nim-src/bin/testament html
