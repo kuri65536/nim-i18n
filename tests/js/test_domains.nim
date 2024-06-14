@@ -1,7 +1,7 @@
 discard """
     targets: "js"
 """
-import i18n
+import ../../src/i18n
 
 # "setTextLocale - no-args":
 setTextLocale()

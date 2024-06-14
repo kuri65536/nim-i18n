@@ -6,5 +6,6 @@ testresults
 testresults.html
 tests/c/test
 tests/c/test_ngettext
+tests/config.nims
 tests/js/*.js
 

@@ -15,34 +15,11 @@ when not defined(js) and not defined(nimsuggest):
 import jsffi
 import tables
 
+import i18n_header
+
 
 type
-  StringEntry* {.pure final.} = object
-    length*: uint32
-    offset*: uint32
-
-  TableEntry* {.pure final.} = object
-    key*: StringEntry
-    value*: string
-
   CallInfo = tuple[filename: string, line: int, column: int]
-
-  EncodingConverter* = object
-    discard
-
-  State* = object
-    discard
-
-  Catalogue* = ref object
-    filepath*: cstring
-    lookup_db*: JsAssoc[cstring, seq[cstring]]
-    domain*: cstring
-    charset: cstring
-    use_decoder: bool
-
-    plural_lookup*: Table[string, seq[string]]
-    key_cache*: string
-    entries*: seq[TableEntry]
 
 
 proc hasOwnProperty(x: JsAssoc, prop: cstring): bool
@@ -76,6 +53,15 @@ template debug(msg: untyped, i: CallInfo): untyped =
         {.emit: "console.debug(`i` + `msg`);".}
 
 
+proc equal*(self: tuple[length, offset: int],
+            other: string; cache: string): bool =
+    let offset = self.offset.int
+    for i in 0..<self.length.int:
+        if cache[offset + i] != other[i]:
+            return false
+    return true
+
+
 proc lookup*(self: Catalogue; key: string): string =
     return $self.lookup_db[key]
 
@@ -85,8 +71,8 @@ proc newCatalogue*(json: cstring) : Catalogue =
     try:
         var data = json_parse(json)
         result.lookup_db = data.to(JsAssoc[cstring, seq[cstring]])
-        result.charset = data[""]["Language-Code"].to(cstring)
-        result.domain = data[""]["Domain"].to(cstring)
+        result.charset = data[""]["Language-Code"].to(string)
+        result.domain = data[""]["Domain"].to(string)
         discard jsDelete(result.lookup_db[""])
     except:
         return result
@@ -103,7 +89,7 @@ proc find_catalogue(localedir, domain: string; locales: seq[string]): string =
     result = ""
 
 
-proc set_text_domain_impl(domain: string; info: CallInfo) : Catalogue =
+proc set_text_domain_impl*(domain: string; info: CallInfo) : Catalogue =
     if result == nil:
         result = DEFAULT_NULL_CATALOGUE
 
@@ -111,7 +97,7 @@ proc set_text_domain_impl(domain: string; info: CallInfo) : Catalogue =
 proc get_locale_properties*(): (string, string) =
     result = ("C", "ascii")
 
- 
+
 proc decode_impl*(catalogue: Catalogue; translation: string): string {.inline.}=
     shallowCopy result, translation
 

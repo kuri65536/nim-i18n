@@ -70,41 +70,19 @@ when not defined(js):
   import os
   import strutils
   import streams
+  import i18n/i18n_header
   import i18n/private/plural
 
 else:
   import jsffi
   import strutils
 
+  import i18n/i18n_header
   import i18n/i18n_js
 
 
 type
     Hash = int
-
-    StringEntry {.pure final.} = object
-        length: uint32
-        offset: uint32
-
-    TableEntry {.pure final.} = object
-        key: StringEntry
-        value: string
-
-    Catalogue = ref object
-        version: uint32
-
-        filepath: string
-        domain: string
-        charset: string
-        use_decoder: bool
-        decoder: EncodingConverter
-        plurals: seq[State]
-        plural_lookup: Table[string, seq[string]]
-
-        num_plurals: int
-        num_entries: int
-        key_cache: string
-        entries: seq[TableEntry]
 
     LineInfo = tuple[filename: string, line: int, column: int]
 
@@ -213,7 +191,8 @@ when false:
 
 
 when not defined(js):
-  proc equal(self: StringEntry; other: string; cache: string): bool =
+  proc equal(self: tuple[length, offset: int],
+             other: string; cache: string): bool =
     if self.length.int == other.len:
         return equalMem(cache[self.offset.int].unsafeAddr, other[0].unsafeAddr, other.len)
     return false
@@ -271,7 +250,11 @@ proc get_bucket(self: Catalogue; key: string): int =
     if self.entries.len == 0:
         return -1
 
-    while self.entries[index].value == "" or not self.entries[index].key.equal(key, self.key_cache):
+    proc equals(en: TableEntry): bool =
+        let tmp = (en.key.length.int, en.key.offset.int)
+        return equal(tmp, key, self.key_cache)
+
+    while self.entries[index].value == "" or not equals(self.entries[index]):
         index = (index + step) and mask # linear probing
         inc(step)
         if index == endp:
