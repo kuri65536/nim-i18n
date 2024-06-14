@@ -1,0 +1,55 @@
+name: nim CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+env:
+  nimlatest: "2.0.4"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        nimver: ["2.0.4"]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: install gettext, nodejs
+      run: |
+          sudo apt-get update
+          sudo apt-get -y install gettext
+          sudo apt-get -y install nodejs
+    - name: make data
+      run:  make -C tests/data
+
+    - uses: iffy/install-nim@v5
+      with:
+        version: ${{ matrix.nimver }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - uses: actions/cache@v4
+      with:
+        path: /usr/bin
+        key:  ${{ runner.os }}-build-${{ hashFiles('nim') }}
+
+    - name: run with testament
+      run:  testament pattern 'tests/**/*.nim'
+    - name: results with testament
+      run:  |
+            testament html
+            mv testresults.html testresults-${{matrix.nimver}}.html
+
+    - name: make documents
+      if:   ${{ matrix.nimver == env.nimlatest }}
+      run:  nim doc --project --outdir:html src/i18n.nim
+
+    - name: deploy to github pages
+      uses: peaceiris/actions-gh-pages@v3
+      if:   ${{ matrix.nimver == env.nimlatest }}
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir:  ./html
+
