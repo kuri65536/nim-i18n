@@ -1,0 +1,25 @@
+nimTitle	plural	i18n/private/plural.html	module src/i18n/private/plural		0
+nim	INVALID	i18n/private/plural.html#INVALID	Operator.INVALID		6
+nim	ADD	i18n/private/plural.html#ADD	Operator.ADD		6
+nim	SUB	i18n/private/plural.html#SUB	Operator.SUB		6
+nim	MOD	i18n/private/plural.html#MOD	Operator.MOD		6
+nim	DIV	i18n/private/plural.html#DIV	Operator.DIV		6
+nim	MUL	i18n/private/plural.html#MUL	Operator.MUL		6
+nim	LE	i18n/private/plural.html#LE	Operator.LE		6
+nim	EQ	i18n/private/plural.html#EQ	Operator.EQ		6
+nim	LT	i18n/private/plural.html#LT	Operator.LT		6
+nim	GT	i18n/private/plural.html#GT	Operator.GT		6
+nim	GE	i18n/private/plural.html#GE	Operator.GE		6
+nim	NE	i18n/private/plural.html#NE	Operator.NE		6
+nim	AND	i18n/private/plural.html#AND	Operator.AND		6
+nim	OR	i18n/private/plural.html#OR	Operator.OR		6
+nim	TERNARY	i18n/private/plural.html#TERNARY	Operator.TERNARY		6
+nim	PARENT_OPEN	i18n/private/plural.html#PARENT_OPEN	Operator.PARENT_OPEN		6
+nim	PARENT_CLOSE	i18n/private/plural.html#PARENT_CLOSE	Operator.PARENT_CLOSE		6
+nim	CONSTANT	i18n/private/plural.html#CONSTANT	Operator.CONSTANT		6
+nim	VARIABLE	i18n/private/plural.html#VARIABLE	Operator.VARIABLE		6
+nim	Operator	i18n/private/plural.html#Operator	enum Operator		6
+nim	State	i18n/private/plural.html#State	object State		9
+nim	`$`	i18n/private/plural.html#$,State	proc `$`(x: State): string		55
+nim	evaluate	i18n/private/plural.html#evaluate,openArray[State],int	proc evaluate(symbols: openArray[State]; value: int): int		65
+nim	parseExpr	i18n/private/plural.html#parseExpr,string	proc parseExpr(str: string): seq[State]		110

@@ -1,0 +1,15 @@
+nimTitle	i18n	i18n.html	module src/i18n		0
+nim	dngettext	i18n.html#dngettext.t,string,string,string,int	template dngettext(domain: string; msgid, msgid_plural: string; num: int): string		566
+nim	dgettext	i18n.html#dgettext.t,string,string	template dgettext(domain: string; msgid: string): string		573
+nim	ngettext	i18n.html#ngettext.t,string,string,int	template ngettext(msgid, msgid_plural: string; num: int): string		579
+nim	gettext	i18n.html#gettext.t,string	template gettext(msgid: string): string		590
+nim	tr	i18n.html#tr.t,string	template tr(msgid: string): string		604
+nim	pgettext	i18n.html#pgettext.t,string,string	template pgettext(msgctxt, msgid: string): string		618
+nim	npgettext	i18n.html#npgettext.t,string,string,string,int	template npgettext(msgctxt, msgid, msgid_plural: string; num: int): string		623
+nim	dpgettext	i18n.html#dpgettext.t,string,string,string	template dpgettext(domain, msgctxt, msgid: string): string		628
+nim	dnpgettext	i18n.html#dnpgettext.t,string,string,string,string,int	template dnpgettext(domain, msgctxt, msgid, msgid_plural: string; num: int): string		633
+nim	setTextDomain	i18n.html#setTextDomain.t,string	template setTextDomain(domain: string): bool		638
+nim	getTextDomain	i18n.html#getTextDomain	proc getTextDomain(): string		649
+nim	bindTextDomain	i18n.html#bindTextDomain,string,string	proc bindTextDomain(domain: string; dir_path: string)		656
+nim	setTextLocale	i18n.html#setTextLocale,string,string	proc setTextLocale(locale = ""; codeset = "")		670
+nim	getTextLocale	i18n.html#getTextLocale	proc getTextLocale(): string		733
