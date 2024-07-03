@@ -61,7 +61,7 @@
 ##
 ##  # same thing but lookup inside current domain.
 ##  npgettext("context2", "%i hour", "%i hours", 2)
-import algorithm
+import options
 import tables
 
 when not defined(js):
@@ -98,6 +98,8 @@ else:
 
 const TABLE_MAXIMUM_LOAD = 0.5
 const MSGCTXT_SEPARATOR = '\4'
+const fallback_charset = "UTF-8"
+const fallback_locale = "C"
 
 #~when sizeof(StringEntry) != sizeof(uint32) * 2:
 #~    {.fail:"StringEntry size != 8 bytes"}
@@ -117,21 +119,94 @@ const MSGCTXT_SEPARATOR = '\4'
 #~         24  | offset of hashing table                  |  == H
 
 var
-    DOMAIN_REFS = initTable[string, string]()
-    CATALOGUE_REFS = initTable[string, Catalogue]()
+    DOMAIN_REFS_var {.threadvar.}: TableRef[string, string]
+    CATALOGUE_REFS_var {.threadvar.}: TableRef[string, Catalogue]
     #[
     CURRENT_DOMAIN_REF: string
     ]#
-    CURRENT_CATALOGUE: Catalogue
-    CURRENT_CHARSET = "UTF-8"
-    CURRENT_LOCALE = "C"
-    CURRENTS_LANGS : seq[string] = @[]
+    CURRENT_CATALOGUE_var {.threadvar.}: Catalogue
+    CURRENT_CHARSET_var {.threadvar.}: Option[string]
+    CURRENT_LOCALE_var {.threadvar.}: Option[string]
+    CURRENTS_LANGS_var {.threadvar.}: Option[seq[string]]
+
+const
     DEFAULT_LOCALE_DIR = "/usr/share/locale"
-    DEFAULT_NULL_CATALOGUE = Catalogue(filepath:"", entries: @[], key_cache:"", domain:"default", plural_lookup: [("",@[""])].toTable)
 
-let
-    DEFAULT_PLURAL = parseExpr("(n != 1)")
 
+template DEFAULT_PLURAL(): untyped =
+    parseExpr("(n != 1)")
+
+
+proc newNullCatalogue(): Catalogue =
+    result = Catalogue(filepath:"", entries: @[], key_cache:"",
+                       domain:"default", plural_lookup: [("", @[""])].toTable)
+
+
+proc is_null_catalogue(src: Catalogue): bool =
+    if src.domain != "default":
+        return false
+    if src.filepath != "":
+        return false
+    return true
+
+
+proc set_catalogue_refs(key = "", value: Catalogue = nil
+                        ): TableRef[string, Catalogue] =
+    if isNil(CATALOGUE_REFS_var):
+        CATALOGUE_REFS_var = newTable[string, Catalogue]()
+    if len(key) > 0:
+        CATALOGUE_REFS_var[key] = value
+    return CATALOGUE_REFS_var
+
+
+proc set_current_catalogue(src: Catalogue = nil): Catalogue =
+    if not isNil(src):
+        CURRENT_CATALOGUE_var = src
+    elif isNil(CURRENT_CATALOGUE_var):
+        CURRENT_CATALOGUE_var = newNullCatalogue()
+    return CURRENT_CATALOGUE_var
+
+
+proc set_current_charset(src = ""): string =
+    if src != "":
+        CURRENT_CHARSET_var = some(src)
+    elif CURRENT_CHARSET_var.isNone():
+        CURRENT_CHARSET_var = some(fallback_charset)
+    return CURRENT_CHARSET_var.get()
+
+
+proc set_current_locale(src = ""): string =
+    if src != "":
+        CURRENT_LOCALE_var = some(src)
+    elif CURRENT_LOCALE_var.isNone():
+        CURRENT_LOCALE_var = some(fallback_locale)
+    return CURRENT_LOCALE_var.get()
+
+
+proc set_current_langs(src = ""): seq[string] =
+    if src == "nil":
+        var tmp: seq[string]
+        CURRENTS_LANGS_var = some(tmp)
+    elif len(src) > 0:
+        CURRENTS_LANGS_var.get().add(src)
+    elif isNone(CURRENTS_LANGS_var):
+        var tmp: seq[string]
+        CURRENTS_LANGS_var = some(tmp)
+    return CURRENTS_LANGS_var.get()
+
+
+#~proc isStatic(a: string{lit|`const`}): bool {.compileTime.}=
+#~    result = true
+
+#~proc isStatic(a: string): bool {.compileTime.}=
+#~    result = false
+
+proc set_domain_refs(key = "", value = ""): TableRef[string, string] =
+    if isNil(DOMAIN_REFS_var):
+        DOMAIN_REFS_var = newTable[string, string]()
+    if len(key) > 0:
+        DOMAIN_REFS_var[key] = value
+    return DOMAIN_REFS_var
 
 
 #~proc isStatic(a: string{lit|`const`}): bool {.compileTime.}=
@@ -357,10 +432,13 @@ when not defined(js):
         result.plurals = DEFAULT_PLURAL
 
     # Initialize charset converter if needed to convert to current locale encoding.
-    if result.charset != CURRENT_CHARSET : # Catalogue charset different from current charset
-        if not (CURRENT_CHARSET == "utf-8" and result.charset == "ascii"): # Special case since ascii is UTF-8 compatible
+    let current_charset = set_current_charset()
+    if result.charset != current_charset:
+        # Catalogue charset different from current charset
+        let tmp = current_charset.toLower()
+        if not (tmp == "utf-8" and result.charset == "ascii"): # Special case since ascii is UTF-8 compatible
             result.use_decoder = true
-            result.decoder = open(CURRENT_CHARSET, result.charset)
+            result.decoder = open(current_charset, result.charset)
 
     # Initialize plural table
     result.plural_lookup = initTable[string, seq[string]]()
@@ -457,19 +535,22 @@ when not defined(js):
 
 
   proc set_text_domain_impl(domain: string; info: LineInfo) : Catalogue =
-    result = CATALOGUE_REFS.getOrDefault(domain)
+    result = set_catalogue_refs().getOrDefault(domain)
 
     if result == nil: # domain not found in list of loaded catalogues.
-        let localedir = DOMAIN_REFS.getOrDefault(domain) # try lookup domain in registered domains.
-        let file_path = find_catalogue(localedir ?? DEFAULT_LOCALE_DIR, domain, CURRENTS_LANGS)
+        let localedir = set_domain_refs().getOrDefault(domain) # try lookup domain in registered domains.
+        let file_path = find_catalogue(localedir ?? DEFAULT_LOCALE_DIR, domain,
+                                       set_current_langs())
         if file_path == "": # catalogue file not found!
             when not defined(release):
-                debug("warning: TextDomain '$#' was not found for locale '$#'.".format(domain, $CURRENTS_LANGS) &
+                let tmp = set_current_langs()
+                debug("warning: TextDomain '" & domain & "' was not found " &
+                      "for locale " & $tmp &
                       " (use 'bindTextDomain' to add a folder in the search path)", info)
-            result = DEFAULT_NULL_CATALOGUE
+            result = newNullCatalogue()
         else:
             result = newCatalogue(domain, file_path)
-            CATALOGUE_REFS[domain] = result
+            discard set_catalogue_refs(domain, result)
 
 
   proc get_locale_properties(): (string, string) =
@@ -580,39 +661,43 @@ template ngettext*(msgid, msgid_plural: string; num: int): string =
     ## Same as **gettext**, but choose the appropriate plural form, which depends on ``num``
     ## and the language of the message catalog where the translation was found.
     ## If translation is not found ``msgid`` or ``msgid_plural`` is returned depending on ``num``.
+    let cat = set_current_catalogue()
     when not defined(release):
-        if CURRENT_CATALOGUE == DEFAULT_NULL_CATALOGUE:
+        if cat.is_null_catalogue():
             debug("warning: TextDomain is not set. " &
                   "(use 'setTextDomain' to bind a valid TextDomain as default)",
                   instantiationInfo())
-    dngettext_impl(CURRENT_CATALOGUE, msgid, msgid_plural, num, instantiationInfo())
+    dngettext_impl(cat, msgid, msgid_plural, num, instantiationInfo())
+
 
 template gettext*(msgid: string): string =
     ## Attempt to translate a ``msgid`` into the user's native language (as set by **setTextLocale**),
     ## by looking up the translation in a message catalog. (loaded according to the current text domain and locale.)
     ## If translation is not found ``msgid`` is returned.
+    let cat = set_current_catalogue()
     when not defined(release):
-        if CURRENT_CATALOGUE == DEFAULT_NULL_CATALOGUE:
+        if cat.is_null_catalogue():
             debug("warning: TextDomain is not set. " &
                   "(use 'setTextDomain' to bind a valid TextDomain as default)",
                   instantiationInfo())
 #~    when msgid.isStatic:
 #~        const hashval = hash(msgid)
 #~        echo("string literal ready to hash at compile time!: ", hashval)
-    dgettext_impl(CURRENT_CATALOGUE, msgid, instantiationInfo())
+    dgettext_impl(cat, msgid, instantiationInfo())
 
 template tr*(msgid: string): string =
     ## Alias for **gettext**. usage: tr"msgid"
     # Temporary fix for https://github.com/nim-lang/Nim/issues/4128
+    let cat = set_current_catalogue()
     when not defined(release):
-        if CURRENT_CATALOGUE == DEFAULT_NULL_CATALOGUE:
+        if cat.is_null_catalogue():
             debug("warning: TextDomain is not set. " &
                   "(use 'setTextDomain' to bind a valid TextDomain as default)",
                   instantiationInfo())
 #~    when msgid.isStatic:
 #~        const hashval = hash(msgid)
 #~        echo("string literal ready to hash at compile time!: ", hashval)
-    dgettext_impl(CURRENT_CATALOGUE, msgid, instantiationInfo())
+    dgettext_impl(cat, msgid, instantiationInfo())
 
 
 template pgettext*(msgctxt, msgid: string): string =
@@ -641,7 +726,7 @@ template setTextDomain*(domain: string) : bool =
     ## ``domain`` could not be found.
     let catalogue {.gensym.} = set_text_domain_impl(domain, instantiationInfo())
     if catalogue != nil: # if catalogue was found
-        CURRENT_CATALOGUE = catalogue
+        discard set_current_catalogue(catalogue)
         makeDiscardable(true)
     else:
         makeDiscardable(false)
@@ -649,7 +734,7 @@ template setTextDomain*(domain: string) : bool =
 proc getTextDomain*() : string =
     ## Returns the current message domain used by **gettext**, **ngettext**, **pgettext**,
     ## **npgettext** functions.
-    result = $CURRENT_CATALOGUE.domain
+    result = $set_current_catalogue().domain
 
 
 when not defined(js):
@@ -665,7 +750,7 @@ when not defined(js):
         raise newException(ValueError, "'dir_path' argument " &
                 "must be an absolute path; was '" & (dir_path ?? "nil") & "'")
 
-    DOMAIN_REFS[domain] = dir_path
+    discard set_domain_refs(domain, dir_path)
 
 proc setTextLocale*(locale="", codeset="") =
     ## Sets text locale used for message translation. ``locale`` must be a valid expression in the form:
@@ -704,8 +789,9 @@ proc setTextLocale*(locale="", codeset="") =
                 locale_expr = locale
             codeset_expr = getCurrentEncodingEx()
 
-    CURRENT_LOCALE = locale_expr
-    CURRENT_CHARSET = if codeset.len == 0: codeset_expr else: codeset
+    discard set_current_locale(locale_expr)
+    discard set_current_charset(if codeset.len < 1: codeset_expr
+                                else:               codeset)
 
     var territory, lang: string
     let pos = locale_expr.find('_')
@@ -716,22 +802,22 @@ proc setTextLocale*(locale="", codeset="") =
         lang = locale_expr
         territory = ""
 
-    CURRENTS_LANGS.setLen(0)
+    discard set_current_langs("nil")
 
-    var localename = lang
-    CURRENTS_LANGS.add(localename) # ll
-    if territory.len != 0:
-        localename.add(territory)
-        CURRENTS_LANGS.add(localename) # ll_CC
     if codeset_expr.len != 0:
-        localename.add('.')
-        localename.add(codeset_expr)
-        CURRENTS_LANGS.add(localename) # ll_CC.codeset
+        var tmp = lang
+        tmp.add('.')
+        tmp.add(codeset_expr)
+        discard set_current_langs(tmp)  # ll_CC.codeset
+    if territory.len != 0:
+        var tmp = lang
+        tmp.add(territory)
+        discard set_current_langs(tmp)  # ll_CC
+    discard set_current_langs(lang)     # ll
 
-    CURRENTS_LANGS.reverse()
 
 proc getTextLocale*(): string =
     ## Returns current text locale used for message translation.
-    result = CURRENT_LOCALE & '.' & CURRENT_CHARSET
+    result = set_current_locale() & '.' & set_current_charset()
 
 

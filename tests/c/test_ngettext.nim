@@ -16,9 +16,7 @@ proc path2(): string =
     result = joinPath(getAppDir(), "../data/tools/gettext")
 
 
-var f_ok = true
-
-block:  # "dngettext - ":
+proc test_dngettext(): bool {.gcsafe.} =
     setTextLocale("fr_FR.UTF-8")
     bindTextDomain("character_traits", path1())
     bindTextDomain("meld", path2())
@@ -27,11 +25,12 @@ block:  # "dngettext - ":
     let ans = dngettext("meld", "%u hour", "%u hours", 2)
     if "2 heurese" != ans:
         echo("2 heurese != " & ans)
-        f_ok = false
+        return false
     #cho("meld: ", ans)
+    return true
 
 
-block:  # "ngettext - ":
+proc test_ngettext(): bool {.gcsafe.} =
     setTextLocale("fr_FR.UTF-8")
     bindTextDomain("character_traits", path1())
     bindTextDomain("meld", path2())
@@ -39,9 +38,15 @@ block:  # "ngettext - ":
 
     let ans = ngettext("%u hour", "%u hours", 2)
     if "2 hueres" != ans:
-        f_ok = false
         echo("2 hueres != " & ans)
+        return false
     #cho("meld: ", ngettext("%u hour", "%u hours", 2))
+    return true
 
+
+
+var f_ok = true
+f_ok = test_dngettext() and f_ok
+f_ok = test_ngettext() and f_ok
 assert f_ok
 

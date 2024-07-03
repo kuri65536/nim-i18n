@@ -5,6 +5,7 @@ function build() {
 
 
 function test() {
+    make -C tests/data build
     testament pattern 'tests/**/*.nim'
     testament html
     mv -f testresults.html html

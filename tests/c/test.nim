@@ -18,47 +18,62 @@ proc path2(): string =
 
 
 test "setTextLocale - no-args":
+  proc wrap() {.gcsafe.} =
     setTextLocale()
+  wrap()
 
 
 test "setTextLocale - with arg":
+  proc wrap() {.gcsafe.} =
     setTextLocale("fr_FR.UTF-8")
+  wrap()
 
 
 test "bindTextDomain - load with nil":
+  proc wrap() {.gcsafe.} =
     setTextLocale("fr_FR.UTF-8")
     expect(ValueError):
         bindTextDomain("character_trits", "")
+  wrap()
 
 
 test "bindTextDomain - load 1":
+  proc wrap() {.gcsafe.} =
     setTextLocale("fr_FR.UTF-8")
     bindTextDomain("character_traits", path1())
     setTextDomain("character_traits")
+  wrap()
 
 
 test "bindTextDomain - load 2":
+  proc wrap() {.gcsafe.} =
     setTextLocale("fr_FR.UTF-8")
     bindTextDomain("meld", path2())
     setTextDomain("meld")
+  wrap()
 
 
 test "bindTextDomain - load double domains":
+  proc wrap() {.gcsafe.} =
     setTextLocale("fr_FR.UTF-8")
     bindTextDomain("character_traits", path1())
     bindTextDomain("meld", path2())
     setTextDomain("meld")
+  wrap()
 
 
 test "setTextDomain - move to the second domain":
+  proc wrap() {.gcsafe.} =
     setTextLocale("fr_FR.UTF-8")
     bindTextDomain("character_traits", path1())
     bindTextDomain("meld", path2())
     setTextDomain("character_traits")
     setTextDomain("meld")
+  wrap()
 
 
 test "tr - translate with a current domain":
+  proc wrap() {.gcsafe.} =
     setTextLocale("fr_FR.UTF-8")
     bindTextDomain("character_traits", path1())
     bindTextDomain("meld", path2())
@@ -67,9 +82,11 @@ test "tr - translate with a current domain":
     let ans = tr"brilliant_mind"
     check("esprit brillant" == ans)
     #cho("stormborn: ", tr"brilliant_mind")
+  wrap()
 
 
 test "dgettext - translate with an another domain":
+  proc wrap() {.gcsafe.} =
     setTextLocale("fr_FR.UTF-8")
     bindTextDomain("character_traits", path1())
     bindTextDomain("meld", path2())
@@ -78,5 +95,6 @@ test "dgettext - translate with an another domain":
     let ans = dgettext("meld", "brilliant_mind")
     check("esprit m brillante" == ans)
     #cho("stormborn: ", dgettext("meld", "brilliant_mind"))
+  wrap()
 
 
