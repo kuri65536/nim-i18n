@@ -35,16 +35,27 @@ proc parseExpr*(x: string): int =
     result = 0
 
 
-let
-    DEFAULT_NULL_CATALOGUE* = Catalogue(
-        key_cache:"", domain:"default",
-        # plural_lookup: [("",@[""])].toTable
-        )
 var
+    catalogue_current {.threadvar.}: Catalogue
+    catalogue_null {.threadvar.}: Catalogue
     db_var {.threadvar.}: JsAssoc[cstring, Catalogue]
-    CURRENT_CATALOGUE* = DEFAULT_NULL_CATALOGUE
-    CATALOGUE_REFS* = initTable[string, Catalogue]()
-    DOMAIN_REFS = initTable[string, string]()
+
+
+proc get_null_catalogue(): Catalogue =
+    if isNil(catalogue_null):
+        catalogue_null = Catalogue(
+            key_cache:"", domain:"default",
+            # plural_lookup: [("",@[""])].toTable
+        )
+    return catalogue_null
+
+
+proc set_current_catalogue_js*(src: Catalogue): Catalogue =
+    if not isNil(src):
+        catalogue_current = src
+    elif isNil(catalogue_current):
+        catalogue_current = get_null_catalogue()
+    return catalogue_current
 
 
 proc get_db(): JsAssoc[cstring, Catalogue] =
@@ -126,8 +137,22 @@ proc get_locale_properties*(): (string, string) =
     result = ("C", "ascii")
 
 
-proc decode_impl*(catalogue: Catalogue; translation: string): string {.inline.}=
+proc decode_impl*(catalogue: Catalogue; translation: string
+                  ): string {.inline.}=
+  when NimMajor > 1:
+    result = translation
+  else:
     shallowCopy result, translation
+
+
+proc dgettext_impl*(catalogue: Catalogue;
+                    msgid: string;
+                    info: CallInfo): string {.inline.} =
+    result = catalogue.lookup(msgid)
+    if result == msgid:
+        debug(cstring("Warning: translation not found! : '" & msgid &
+              "' in domain '" & catalogue.domain & "'"), info)
+        result = catalogue.decode_impl(msgid)
 
 
 proc dngettext_impl*(catalogue: Catalogue,

@@ -103,7 +103,6 @@ when not defined(js):
   const TABLE_MAXIMUM_LOAD = 0.5
 const MSGCTXT_SEPARATOR = '\4'
 const fallback_charset = "UTF-8"
-const fallback_locale = "C"
 
 #~when sizeof(StringEntry) != sizeof(uint32) * 2:
 #~    {.fail:"StringEntry size != 8 bytes"}
@@ -165,6 +164,9 @@ when not defined(js):
 
 
 proc set_current_catalogue(src: Catalogue = nil): Catalogue =
+  when defined(js):
+        return set_current_catalogue_js(src)
+  else:
     if not isNil(src):
         CURRENT_CATALOGUE_var = src
     elif isNil(CURRENT_CATALOGUE_var):
@@ -178,26 +180,6 @@ proc set_current_charset(src = ""): string =
     elif CURRENT_CHARSET_var.isNone():
         CURRENT_CHARSET_var = some(fallback_charset)
     return CURRENT_CHARSET_var.get()
-
-
-proc set_current_locale(src = ""): string =
-    if src != "":
-        CURRENT_LOCALE_var = some(src)
-    elif CURRENT_LOCALE_var.isNone():
-        CURRENT_LOCALE_var = some(fallback_locale)
-    return CURRENT_LOCALE_var.get()
-
-
-proc set_current_langs(src = ""): seq[string] =
-    if src == "nil":
-        var tmp: seq[string]
-        CURRENTS_LANGS_var = some(tmp)
-    elif len(src) > 0:
-        CURRENTS_LANGS_var.get().add(src)
-    elif isNone(CURRENTS_LANGS_var):
-        var tmp: seq[string]
-        CURRENTS_LANGS_var = some(tmp)
-    return CURRENTS_LANGS_var.get()
 
 
 #~proc isStatic(a: string{lit|`const`}): bool {.compileTime.}=
