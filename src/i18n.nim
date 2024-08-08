@@ -81,9 +81,12 @@ else:
   import i18n/i18n_js
 
 
-type
+when not defined(js):
+  type
     Hash = int
 
+
+type
     LineInfo = tuple[filename: string, line: int, column: int]
 
 
@@ -96,7 +99,8 @@ else:
     getCurrentEncoding()
 
 
-const TABLE_MAXIMUM_LOAD = 0.5
+when not defined(js):
+  const TABLE_MAXIMUM_LOAD = 0.5
 const MSGCTXT_SEPARATOR = '\4'
 const fallback_charset = "UTF-8"
 const fallback_locale = "C"
@@ -118,26 +122,26 @@ const fallback_locale = "C"
 #~             |                                          |
 #~         24  | offset of hashing table                  |  == H
 
-var
+when not defined(js):
+  var
     DOMAIN_REFS_var {.threadvar.}: TableRef[string, string]
     CATALOGUE_REFS_var {.threadvar.}: TableRef[string, Catalogue]
+    CURRENT_CATALOGUE_var {.threadvar.}: Catalogue
     #[
     CURRENT_DOMAIN_REF: string
     ]#
-    CURRENT_CATALOGUE_var {.threadvar.}: Catalogue
+var
     CURRENT_CHARSET_var {.threadvar.}: Option[string]
-    CURRENT_LOCALE_var {.threadvar.}: Option[string]
-    CURRENTS_LANGS_var {.threadvar.}: Option[seq[string]]
 
-const
+  const
     DEFAULT_LOCALE_DIR = "/usr/share/locale"
 
 
-template DEFAULT_PLURAL(): untyped =
+  template DEFAULT_PLURAL(): untyped =
     parseExpr("(n != 1)")
 
 
-proc newNullCatalogue(): Catalogue =
+  proc newNullCatalogue(): Catalogue =
     result = Catalogue(filepath:"", entries: @[], key_cache:"",
                        domain:"default", plural_lookup: [("", @[""])].toTable)
 
@@ -150,7 +154,8 @@ proc is_null_catalogue(src: Catalogue): bool =
     return true
 
 
-proc set_catalogue_refs(key = "", value: Catalogue = nil
+when not defined(js):
+  proc set_catalogue_refs(key = "", value: Catalogue = nil
                         ): TableRef[string, Catalogue] =
     if isNil(CATALOGUE_REFS_var):
         CATALOGUE_REFS_var = newTable[string, Catalogue]()
@@ -201,7 +206,8 @@ proc set_current_langs(src = ""): seq[string] =
 #~proc isStatic(a: string): bool {.compileTime.}=
 #~    result = false
 
-proc set_domain_refs(key = "", value = ""): TableRef[string, string] =
+when not defined(js):
+  proc set_domain_refs(key = "", value = ""): TableRef[string, string] =
     if isNil(DOMAIN_REFS_var):
         DOMAIN_REFS_var = newTable[string, string]()
     if len(key) > 0:
@@ -215,10 +221,11 @@ proc set_domain_refs(key = "", value = ""): TableRef[string, string] =
 #~proc isStatic(a: string): bool {.compileTime.}=
 #~    result = false
 
-proc `==`(self, other: Catalogue): bool =
+when not defined(js):
+  proc `==`(self, other: Catalogue): bool =
     result = cast[BiggestInt](self) == cast[BiggestInt](other)
 
-template `??`(a, b: string): string =
+  template `??`(a, b: string): string =
     if a.len != 0: a else: b
 
 
@@ -232,23 +239,25 @@ else:
        importc: "memchr", header: "<string.h>" .}
 
 
-when NimMajor < 2:
+when not defined(js):
+ when NimMajor < 2:
   proc addr_offset(tail, head: pointer): ByteAddress {.inline.} =
       result = cast[ByteAddress](tail) -% cast[ByteAddress](head)
 
-else:
+ else:
   proc addr_offset(tail, head: pointer): int {.inline.} =
       result = cast[int](tail) -% cast[int](head)
 
 
-proc `!&`(h: Hash, val: int): Hash {.inline.} =
+ proc `!&`(h: Hash, val: int): Hash {.inline.} =
       ## mixes a hash value `h` with `val` to produce a new hash value. This is
       ## only needed if you need to implement a hash proc for a new datatype.
       result = h +% val
       result = result +% result shl 10
       result = result xor (result shr 6)
 
-proc `!$`(h: Hash): Hash {.inline.} =
+
+ proc `!$`(h: Hash): Hash {.inline.} =
       ## finishes the computation of the hash value. This is
       ## only needed if you need to implement a hash proc for a new datatype.
       result = h +% h shl 3
@@ -272,7 +281,9 @@ when not defined(js):
         return equalMem(cache[self.offset.int].unsafeAddr, other[0].unsafeAddr, other.len)
     return false
 
-proc hash(self: StringEntry; cache: string): Hash =
+
+when not defined(js):
+ proc hash(self: StringEntry; cache: string): Hash =
   ## efficient hashing of StringEntry
   let start = self.offset.int
   let endp = (self.offset + self.length).int
@@ -281,14 +292,17 @@ proc hash(self: StringEntry; cache: string): Hash =
     h = h !& ord(cache[i])
   result = !$h
 
-proc hash(x: string): Hash =
+
+ proc hash(x: string): Hash =
   ## efficient hashing of strings
   var h: Hash = 0
   for i in 0..x.len-1:
     h = h !& ord(x[i])
   result = !$h
 
-proc get_empty_bucket(self: Catalogue; key: StringEntry; value: string): int =
+
+when not defined(js):
+  proc get_empty_bucket(self: Catalogue; key: StringEntry; value: string): int =
     let mask  = self.entries.len - 1
     var index = hash(key, self.key_cache) and mask
     let endp  = index # if index returns to initial value; unable to insert value
@@ -302,7 +316,8 @@ proc get_empty_bucket(self: Catalogue; key: StringEntry; value: string): int =
 
     return index;
 
-proc insert(self: Catalogue; key: StringEntry; value: string) =
+
+  proc insert(self: Catalogue; key: StringEntry; value: string) =
     let index = self.get_empty_bucket(key, value)
     if index == -1:
         quit("failure to insert key!")
@@ -316,7 +331,7 @@ proc insert(self: Catalogue; key: StringEntry; value: string) =
         self.entries[index].value = value
 
 
-proc get_bucket(self: Catalogue; key: string): int =
+  proc get_bucket(self: Catalogue; key: string): int =
     let mask  = self.entries.len - 1
     var index = hash(key) and mask
     let endp  = index # if index returns to initial value; unable to insert value
@@ -684,6 +699,7 @@ template gettext*(msgid: string): string =
 #~        const hashval = hash(msgid)
 #~        echo("string literal ready to hash at compile time!: ", hashval)
     dgettext_impl(cat, msgid, instantiationInfo())
+
 
 template tr*(msgid: string): string =
     ## Alias for **gettext**. usage: tr"msgid"
