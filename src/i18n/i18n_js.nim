@@ -8,12 +8,15 @@ Nim gettext-like module javascript backend
   See the file "LICENSE" (MIT)
 ```
 ]##
+#[
 when not defined(js) and not defined(nimsuggest):
   {.fatal: "Module i18n_js is to be used with the JavaScript backend.".}
-
-
+]#
+import jsconsole
 import jsffi
+
 import tables
+import strutils
 
 import i18n_header
 
@@ -38,19 +41,27 @@ let
         # plural_lookup: [("",@[""])].toTable
         )
 var
-    db = newJsAssoc[cstring, Catalogue]()
+    db_var {.threadvar.}: JsAssoc[cstring, Catalogue]
     CURRENT_CATALOGUE* = DEFAULT_NULL_CATALOGUE
     CATALOGUE_REFS* = initTable[string, Catalogue]()
     DOMAIN_REFS = initTable[string, string]()
+
+
+proc get_db(): JsAssoc[cstring, Catalogue] =
+    if isNil(db_var):
+        db_var = newJsAssoc[cstring, Catalogue]()
+    return db_var
 
 
 template getCurrentEncodingEx*(): untyped =
     "ascii"
 
 
-template debug(msg: untyped, i: CallInfo): untyped =
+template debug(msg: untyped, info: CallInfo): untyped =
     when not defined(release):
-        {.emit: "console.debug(`i` + `msg`);".}
+        let filepos {.gensym.} = cstring(info[0] & "(" & $info[1] & ") ")
+        {.gcsafe.}:
+            console.debug(filepos, msg)
 
 
 proc equal*(self: tuple[length, offset: int],
@@ -66,17 +77,34 @@ proc lookup*(self: Catalogue; key: string): string =
     return $self.lookup_db[key]
 
 
-proc newCatalogue*(json: cstring) : Catalogue =
+proc parse_json(self: var Catalogue, json: cstring): bool =
+    let data = try:
+            echo("parse_json-parse   : ", json)
+            var tmp: JsObject
+            {.emit: "`tmp` = JSON.parse(`json`);".}
+            tmp
+        except JsSyntaxError:
+            echo("parse_json-expected: ", json)
+            return true
+    for i in ["Language-Code", "Domain",
+              "Plural-Forms",
+              "lookup",
+              ]:
+        let j = cstring(i)
+        if not data.hasOwnProperty(j):
+            debug(cstring("`" & i & "` not defined in json"), instantiationInfo())
+            return true
+    self.charset = $data["Language-Code"].to(cstring)
+    self.domain = $data["Domain"].to(cstring)
+    self.lookup_db = data["lookup"].to(JsAssoc[cstring, JsObject])
+    self.loaded = true
+
+
+proc newCatalogue*(json: cstring, url = "") : Catalogue =
     new(result)
-    try:
-        var data = json_parse(json)
-        result.lookup_db = data.to(JsAssoc[cstring, seq[cstring]])
-        result.charset = data[""]["Language-Code"].to(string)
-        result.domain = data[""]["Domain"].to(string)
-        discard jsDelete(result.lookup_db[""])
-    except:
-        return result
-    # TODO(shimoda): result.filepath = $(path)
+    if result.parse_json(json):
+        return nil
+    result.filepath = url
 
 
 proc is_valid*(self: Catalogue): bool =  # {{{1
@@ -109,21 +137,43 @@ proc dngettext_impl*(catalogue: Catalogue,
 
 
 proc bindTextDomain*(data: cstring) =
+    ##[parse a domain data from the JSON string.
+    ]##
     var cat = newCatalogue(data)
+    if isNil(cat):
+        debug("can't parse json:" & data, instantiationInfo())
+        return
     if not cat.is_valid():
         cat.lookup_db = nil
         return
-    var key: cstring = cat.domain & "-" & cat.charset
+    let key = cstring(cat.domain & "-" & cat.charset)
+    let db = get_db()
     if db.hasOwnProperty(key):
-        discard
-        # debug("override ", instantiationInfo())
+        debug("override ", instantiationInfo())
     db[key] = cat
-    debug("registered " & $key, instantiationInfo())
+    debug(cstring("registered " & $key), instantiationInfo())
 
 
-proc bindTextDomain*(domain: string; dir_path: string) =
+proc bindTextDomain*(domain: string; dir_path: string): void {.gcsafe.} =
+    ##[load or parse the domain data.
+    ]##
     if domain.len == 0:
         raise newException(ValueError, "Domain name has zero length.")
+    if dir_path.len < 1:
+        raise newException(ValueError, "path or datga has zero length.")
+
+    proc starts_with(a, b: string): bool =
+        if len(a) < len(b):         return false
+        if a[0 .. len(b) - 1] != b: return false
+        return true
+
+    echo("bindTextDomain:", dir_path)
+    if   starts_with(dir_path, "http:"):
+        catalogue_from_url(domain, dir_path)
+    elif starts_with(dir_path, "https:"):
+        catalogue_from_url(domain, dir_path)
+    else:
+        bindTextDomain(cstring(dir_path))
 
 
 # ECMA Specific

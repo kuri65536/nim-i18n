@@ -49,5 +49,6 @@ type
         entries*: seq[TableEntry]
 
         when defined(js):
-            lookup_db*: JsAssoc[cstring, seq[cstring]]
+            loaded*: bool
+            lookup_db*: JsAssoc[cstring, JsObject]
 
