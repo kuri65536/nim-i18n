@@ -9,6 +9,7 @@ Nim gettext-like module
   See the file "LICENSE" (MIT)
 ```
 ]##
+import options
 import tables
 
 import private/plural
@@ -50,5 +51,34 @@ type
 
         when defined(js):
             loaded*: bool
+            wasted*: bool
             lookup_db*: JsAssoc[cstring, JsObject]
+
+const
+    fallback_locale* = "C"
+var
+    CURRENT_LOCALE_var {.threadvar.}: Option[string]
+    CURRENTS_LANGS_var {.threadvar.}: Option[seq[string]]
+
+
+proc set_current_langs*(src = ""): seq[string] =
+    ##[ - src == nil ... initialize a list
+        - src == ""  ... get the list
+        - src != ""  ... add to the list
+    ]##
+    if isNone(CURRENTS_LANGS_var) or src == "nil":
+        var tmp: seq[string]
+        CURRENTS_LANGS_var = some(tmp)
+
+    if len(src) > 0:
+        CURRENTS_LANGS_var.get().add(src)
+    return CURRENTS_LANGS_var.get()
+
+
+proc set_current_locale*(src = ""): string =
+    if src != "":
+        CURRENT_LOCALE_var = some(src)
+    elif CURRENT_LOCALE_var.isNone():
+        CURRENT_LOCALE_var = some(fallback_locale)
+    return CURRENT_LOCALE_var.get()
 

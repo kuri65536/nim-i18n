@@ -13,9 +13,8 @@ when not defined(js) and not defined(nimsuggest):
   {.fatal: "Module i18n_js is to be used with the JavaScript backend.".}
 ]#
 import jsconsole
+import jscore
 import jsffi
-
-import tables
 import strutils
 
 import i18n_header
@@ -28,8 +27,60 @@ type
 proc hasOwnProperty(x: JsAssoc, prop: cstring): bool
     {. importcpp: "#.hasOwnProperty(#)" .}
 
-proc json_parse(x: cstring): JsObject
-    {. importcpp: "JSON.parse(#)" .}
+
+proc load_from_url(url: cstring, cb_succeed: proc(src: cstring): void,
+                                 cb_failed: proc(): void) =
+    ##[for synchronus contents loading,
+        this function use old `XMLHttpRequest`.
+        therefore `fetch` can't be used.
+
+        need to progress async prcedure to load and use tables.
+    ]##
+    {.emit: """if (typeof process === "object") {
+                    var XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
+                    req = new XMLHttpRequest();
+               } else {
+                    req = new XMLHttpRequest();
+               }
+               req.open("GET", `url`, false);
+               req.onreadystatechange = () => {
+                    if (req.readyState != 4) {
+                         ;
+                    } else if (Math.floor(`req`.status / 100) == 2) {
+                        `cb_succeed`(req.responseText);
+                    } else {
+                        `cb_failed`();
+                    }
+                };
+                req.send();
+                console.log(req);
+            """.}
+    ## - above, can't be used now by javascript's single thread...
+    #[
+    {.emit: """var prm1 = fetch(`url`);
+               console.log("fetch(js):" + `url`);
+               prm1.then((response) => {
+                    var prm2 = response.text();
+                    console.log(prm2);
+                    prm2.then((src) => {
+                        console.log("fetch-cb(js):" + src);
+                        `cb_succeed`(src);
+                    }, () => {
+                        `cb_failed`();
+                    });
+               }, () => {
+                    console.log("fetch-fl(js):" + `url`);
+                    `cb_failed`();
+               });
+    """.}
+    ]#
+
+
+proc wait_for_load(self: Catalogue): bool =
+    if self.wasted:
+        return true
+    return not self.loaded
+
 
 proc parseExpr*(x: string): int =
     result = 0
@@ -181,6 +232,52 @@ proc dngettext_impl*(catalogue: Catalogue,
                      msgid, msgid_plural: string, num: int,
                      info: CallInfo): string =
     ""
+
+
+proc lang_from_url(url: cstring): cstring =
+    let tmp = ($url).split("?")
+    let (path, qry) = (tmp[0], tmp[1])
+    for i in path.split("/"):
+        if len(i) != 2: continue
+        return cstring(i)
+    for i in qry.split("&"):
+        let l_and_r = i.split("=")
+        if len(l_and_r) < 2: continue
+        let (l, r) = (l_and_r[0], l_and_r[1])
+        if l != "lang": continue
+        return cstring(r)
+    return cstring(fallback_locale)
+
+
+proc catalogue_from_url(domain: string, url: cstring) =
+    let lang = lang_from_url(url)
+    var cat = Catalogue(loaded: false, wasted: false)
+    let db = get_db()
+    let key = cstring(domain & "-") & lang
+    echo("catalogue_from_url:", key)
+    if db.hasOwnProperty(key):
+        debug("override ", instantiationInfo())
+    db[key] = cat
+    load_from_url(url,
+        proc(src: cstring): void {.gcsafe.} =
+            echo("catalogue_from_url(cb):", src)
+            if cat.parse_json(src):
+                cat.loaded = true
+                cat.wasted = true
+                debug(cstring("error after fetch " & $url), instantiationInfo())
+                discard jsDelete(db[key])
+                let key2 = cstring(cat.domain & "-" & cat.charset)
+                db[key2] = cat
+            else:
+                cat.loaded = true
+                debug("loaded", instantiationInfo())
+        , proc(): void {.gcsafe.} =
+            cat.loaded = true
+            cat.wasted = true
+            debug(cstring("failed to fetch " & $url), instantiationInfo())
+            discard jsDelete(db[key])
+        )
+    ## @todo unblocking load
 
 
 proc bindTextDomain*(data: cstring) =
