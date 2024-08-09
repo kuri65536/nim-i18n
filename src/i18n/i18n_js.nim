@@ -65,7 +65,7 @@ proc get_db(): JsAssoc[cstring, Catalogue] =
 
 
 template getCurrentEncodingEx*(): untyped =
-    "ascii"
+    "UTF-8"
 
 
 template debug(msg: untyped, info: CallInfo): untyped =
@@ -85,7 +85,20 @@ proc equal*(self: tuple[length, offset: int],
 
 
 proc lookup*(self: Catalogue; key: string): string =
-    return $self.lookup_db[key]
+    if not self.loaded:
+        echo("lookup-waiting...")
+        if wait_for_load(self):
+            echo("lookup-waiting-timeout or wasted")
+            return key
+    let tmp = cstring(key)
+    if isNil(self.lookup_db):
+        return key
+    if not self.lookup_db.hasOwnProperty(tmp):
+        return key
+    let ret = self.lookup_db[tmp]
+    if jsTypeOf(ret) == cstring("string"):
+        return $ret.to(cstring)
+    return $ret[0].to(cstring)
 
 
 proc parse_json(self: var Catalogue, json: cstring): bool =
@@ -124,13 +137,22 @@ proc is_valid*(self: Catalogue): bool =  # {{{1
     return false
 
 
-proc find_catalogue(localedir, domain: string; locales: seq[string]): string =
-    result = ""
+proc find_catalogue(domain: string, locales: seq[string]): Catalogue =
+    let db = get_db()
+    for lang in locales:
+        let tmp = cstring(domain & "-" & lang)
+        if db.hasOwnProperty(tmp):
+            return db[tmp]
+    return nil
 
 
 proc set_text_domain_impl*(domain: string; info: CallInfo) : Catalogue =
-    if result == nil:
-        result = DEFAULT_NULL_CATALOGUE
+    let cat = find_catalogue(domain, set_current_langs())
+    if isNil(cat):
+        debug(cstring("can't set domain to " & domain & $set_current_langs()),
+                      instantiationInfo())
+        return get_null_catalogue()
+    return set_current_catalogue_js(cat)
 
 
 proc get_locale_properties*(): (string, string) =
