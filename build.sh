@@ -6,8 +6,10 @@ function build() {
 
 function test() {
     make -C tests/data build
-    testament pattern 'tests/**/*.nim'
+    make -C tests/data serve-start
+    testament "$1" pattern 'tests/**/*.nim'
     testament html
+    make -C tests/data serve-stop
     mv -f testresults.html html
 }
 
@@ -22,8 +24,14 @@ case "x$1" in
 xdoc)
     doc
     ;;
+xtestjs)
+    test --targets:"js"
+    ;;
+xtestc)
+    test --targets:"c"
+    ;;
 xtest)
-    test
+    test --targets:"c js"
     ;;
 *)
     build

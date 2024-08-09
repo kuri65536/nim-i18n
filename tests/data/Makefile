@@ -34,3 +34,11 @@ $(mo1): $(po1)
 $(mo2): $(po2)
 	msgfmt -o $@ $<
 
+
+## for js, serve data
+serve-start:
+	echo > nohup.out
+	nohup python3 -m http.server -d json 8123 &
+serve-stop:
+	kill -TERM $$(lsof -t -i:8123)
+

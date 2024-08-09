@@ -8,6 +8,7 @@ testresults.html
 tests/c/test
 tests/c/test_ngettext
 tests/config.nims
+tests/data/nohup.out
 tests/js/*.js
 tests/megatest*
 

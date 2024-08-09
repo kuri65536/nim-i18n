@@ -1,0 +1,11 @@
+{
+  "Domain": "meld",
+  "Language-Code": "fr",
+  "Language-Name": "French",
+  "Plural-Forms": "nplurals=2; plural=n>1",
+  "lookup": {
+    "brilliant_mind": ["esprit brillant"],
+    "%u hour": ["%u hours", "un heure", "%u heurese"]
+  }
+}
+
