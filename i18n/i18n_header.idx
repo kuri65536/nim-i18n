@@ -1,5 +1,0 @@
-nimTitle	i18n_header	i18n/i18n_header.html	module src/i18n/i18n_header		0
-nim	StringEntry	i18n/i18n_header.html#StringEntry	object StringEntry		27
-nim	TableEntry	i18n/i18n_header.html#TableEntry	object TableEntry		31
-nim	Catalogue	i18n/i18n_header.html#Catalogue	type Catalogue		35
-heading	Nim gettext-like module	i18n/i18n_header.html#nim-gettextminuslike-module	 Nim gettext-like module		0
