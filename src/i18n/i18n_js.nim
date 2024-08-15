@@ -216,12 +216,11 @@ proc parse_plurals(src: JsObject): tuple[n: int, stats: seq[State]] =
 
 proc parse_json(self: var Catalogue, json: cstring): bool =
     let data = try:
-            echo("parse_json-parse   : ", json)
             var tmp: JsObject
             {.emit: "`tmp` = JSON.parse(`json`);".}
             tmp
         except JsSyntaxError:
-            echo("parse_json-expected: ", json)
+            echo("parse_json-exception: ", json)
             return true
     for i in ["Language-Code", "Domain",
               "Plural-Forms",
@@ -297,19 +296,12 @@ proc dngettext_impl*(catalogue: Catalogue,
     let plurals = catalogue.lookup_plurals(msgid)
     if len(plurals) < 1:
         return msgid
-    echo("dngettext-catalo:", catalogue.plurals)
-    echo("dngettext-lookup:", plurals, ", idx=", num)
     let idxev = catalogue.plurals.evaluate(num)
-    echo("dngettext-eval1: ", idxev)
-    echo("dngettext-eval1:1: ", catalogue.plurals.evaluate(1))
-    echo("dngettext-eval1:2: ", catalogue.plurals.evaluate(2))
     let idx = if idxev >= catalogue.num_plurals: 0  # behave as c version
               elif idxev < 0:                    0
               else:                              idxev
-    echo("dngettext-eval2: ", idx)
     var ret = $(if idx < len(plurals): plurals[idx]
                 else:                  plurals[0])
-    echo("dngettext-plurs: ", ret)
     ret = ret.replace("%d", $num)
     ret = ret.replace("%u", $num)
     return cstring(ret)
@@ -343,13 +335,11 @@ proc catalogue_from_url(domain: string, url: cstring) =
     var cat = Catalogue(loaded: false, wasted: false)
     let db = get_db()
     let key = cstring(domain & "-") & lang
-    echo("catalogue_from_url:", key)
     if db.hasOwnProperty(key):
         debug("override ", instantiationInfo())
     db[key] = cat
     load_from_url(url,
         proc(src: cstring): void {.gcsafe.} =
-            echo("catalogue_from_url(cb):", src)
             if cat.parse_json(src):
                 cat.loaded = true
                 cat.wasted = true
@@ -400,7 +390,6 @@ proc bindTextDomain*(domain: string; dir_path: string): void {.gcsafe.} =
         if a[0 .. len(b) - 1] != b: return false
         return true
 
-    echo("bindTextDomain:", dir_path)
     if   starts_with(dir_path, "http:"):
         catalogue_from_url(domain, dir_path)
     elif starts_with(dir_path, "https:"):

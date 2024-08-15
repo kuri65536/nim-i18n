@@ -23,9 +23,9 @@ proc test_dngettext(): bool {.gcsafe.} =
     setTextDomain("character_traits")
 
     let ans = dngettext("meld", "%u hour", "%u hours", 2)
-    if "2 heurese" != ans:
-        echo("2 heurese != " & ans)
-        return false
+    let exp = "2 heurese"
+    if exp != ans:
+        echo(exp, "(exp) != (ans)", ans); return false
     #cho("meld: ", ans)
     return true
 
@@ -37,9 +37,9 @@ proc test_ngettext(): bool {.gcsafe.} =
     setTextDomain("character_traits")
 
     let ans = ngettext("%u hour", "%u hours", 2)
-    if "2 hueres" != ans:
-        echo("2 hueres != " & ans)
-        return false
+    let exp = "2 hueres"
+    if exp != ans:
+        echo(exp, "(exp) != (ans)", ans); return false
     #cho("meld: ", ngettext("%u hour", "%u hours", 2))
     return true
 

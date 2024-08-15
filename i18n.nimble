@@ -1,5 +1,5 @@
 # Package
-version       = "0.3.2"
+version       = "0.3.3"
 author        = "Parashurama"
 description   = "Bring a gettext-like internationalisation module to Nim"
 license       = "MIT"

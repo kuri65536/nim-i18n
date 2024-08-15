@@ -21,7 +21,7 @@ jobs:
       run: |
           sudo apt-get update
           sudo apt-get -y install gettext
-          sudo apt-get -y install nodejs
+          sudo apt-get -y install nodejs node-xmlhttprequest
     - name: make data
       run:  make -C tests/data
 
@@ -30,13 +30,18 @@ jobs:
         version: ${{ matrix.nimver }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: make hash for this environment
+      run: |
+          nim --version > nim-version.txt
+
     - uses: actions/cache@v4
       with:
         path: /usr/bin
-        key:  ${{ runner.os }}-build-${{ hashFiles('nim') }}
+        key:  ${{ runner.os }}-build-${{ hashFiles('nim-version.txt') }}
 
     - name: run with testament
-      run:  testament pattern 'tests/**/*.nim'
+      run:  bash build.sh test
     - name: results with testament
       run:  |
             testament html
@@ -44,7 +49,7 @@ jobs:
 
     - name: make documents
       if:   ${{ matrix.nimver == env.nimlatest }}
-      run:  nim doc --project --outdir:html src/i18n.nim
+      run:  bash build.sh doc
 
     - name: deploy to github pages
       uses: peaceiris/actions-gh-pages@v3

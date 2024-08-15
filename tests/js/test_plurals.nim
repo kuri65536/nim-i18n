@@ -25,12 +25,10 @@ const data1 = """{"Language-Code": "fr",
                 "dummy": 0
               }, "dummy": 0}"""
 
-block:  ## {{{1
-  proc wrap() {.gcsafe.} =
+var f_error = block:  ## {{{1
+  proc wrap(): bool {.gcsafe.} =
     let src = data1.replace("test", "nplurals=2; plural=n>1")
     let cat = newCatalogue(cstring(src), "")
-    echo("check:num:", cat.num_plurals)
-    echo("check:prl:", cat.plurals)
     assert cat.num_plurals == 2
     assert cat.plurals.evaluate(1) == 0
     assert cat.plurals.evaluate(2) == 1
@@ -38,4 +36,6 @@ block:  ## {{{1
     assert cat.plurals.evaluate(4) == 1
     assert cat.plurals.evaluate(100) == 1
   wrap()
+
+assert not f_error
 
