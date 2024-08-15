@@ -3,6 +3,7 @@
 .tmp
 html
 nimcache
+nohup.out
 testresults
 testresults.html
 tests/c/test

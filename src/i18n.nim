@@ -129,9 +129,11 @@ when not defined(js):
     #[
     CURRENT_DOMAIN_REF: string
     ]#
+
 var
     CURRENT_CHARSET_var {.threadvar.}: Option[string]
 
+when not defined(js):
   const
     DEFAULT_LOCALE_DIR = "/usr/share/locale"
 

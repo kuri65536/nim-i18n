@@ -26,7 +26,7 @@ const data1 = """{"Language-Code": "fr",
                   "Plural-Forms": "nplurals=2; plural=n>1",
                   "lookup": {
                     "brilliant_mind": "esprit brillant",
-                    "%u hour": ["%u hours", "un huere", "%u hueres"],
+                    "%u hour": ["un huere", "%u hueres"],
                     "dummy": 0
                   }, "dummy": 0}"""
 const data2 = """{"Language-Code": "fr",
@@ -34,7 +34,7 @@ const data2 = """{"Language-Code": "fr",
                   "Plural-Forms": "nplurals=2; plural=n>1",
                   "lookup": {
                     "brilliant_mind": "esprit m brillante",
-                    "%u hour": ["%u hours", "%u huere", "%u huerese"],
+                    "%u hour": ["%u huere", "%u huerese"],
                     "dummy": 0
                   }, "dummy": 0}"""
 
@@ -61,4 +61,13 @@ block:  ## "dgettext - translate with an another domain": {{{1
     #cho("stormborn: ", dgettext("meld", "brilliant_mind"))
   wrap()
 
+
+block:  ## "dngettext - translate with an another domain": {{{1
+  proc wrap() {.gcsafe.} =
+    let ans = ngettext("%u hour", "%u hours", 2)
+    let exp = "2 huerese"
+    if exp != ans:
+        echo(exp, " != ", ans)
+        assert exp == ans
+  wrap()
 

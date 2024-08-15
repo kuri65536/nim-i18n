@@ -13,11 +13,11 @@ when not defined(js) and not defined(nimsuggest):
   {.fatal: "Module i18n_js is to be used with the JavaScript backend.".}
 ]#
 import jsconsole
-import jscore
 import jsffi
 import strutils
 
 import i18n_header
+import private/plural
 
 
 type
@@ -26,6 +26,18 @@ type
 
 proc hasOwnProperty(x: JsAssoc, prop: cstring): bool
     {. importcpp: "#.hasOwnProperty(#)" .}
+
+
+proc is_cstring(x: JsObject): bool =
+    return jsTypeOf(x) == cstring("string")
+
+
+proc is_array(x: JsObject): bool =
+    if jsTypeOf(x) == cstring("string"):
+        return false
+    var tmp = false
+    {.emit: "`tmp` = `x`.indexOf !== undefined;".}
+    return tmp
 
 
 proc load_from_url(url: cstring, cb_succeed: proc(src: cstring): void,
@@ -74,16 +86,6 @@ proc load_from_url(url: cstring, cb_succeed: proc(src: cstring): void,
                });
     """.}
     ]#
-
-
-proc wait_for_load(self: Catalogue): bool =
-    if self.wasted:
-        return true
-    return not self.loaded
-
-
-proc parseExpr*(x: string): int =
-    result = 0
 
 
 var
@@ -135,21 +137,81 @@ proc equal*(self: tuple[length, offset: int],
     return true
 
 
-proc lookup*(self: Catalogue; key: string): string =
+proc lookup_plurals*(self: Catalogue, key: cstring): seq[cstring] =
+    let fallback = @[key]
     if not self.loaded:
         echo("lookup-waiting...")
-        if wait_for_load(self):
-            echo("lookup-waiting-timeout or wasted")
-            return key
-    let tmp = cstring(key)
+        return fallback
     if isNil(self.lookup_db):
-        return key
-    if not self.lookup_db.hasOwnProperty(tmp):
-        return key
-    let ret = self.lookup_db[tmp]
-    if jsTypeOf(ret) == cstring("string"):
-        return $ret.to(cstring)
-    return $ret[0].to(cstring)
+        return fallback
+    if not self.lookup_db.hasOwnProperty(key):
+        return fallback
+    let val = self.lookup_db[key]
+    if jsTypeOf(val) == cstring("string"):
+        return @[val.to(cstring)]
+    result = @[]
+    for i in val.to(seq[cstring]):
+        result.add(i)
+
+
+proc lookup*(self: Catalogue, key: cstring): string =
+    let ret = self.lookup_plurals(key)
+    if len(ret) < 1:
+        return $key
+    return $ret[0]
+
+
+proc parse_plurals(src: JsObject): tuple[n: int, stats: seq[State]] =
+    proc parse_oneterm(s: string): tuple[l, r: string] =
+        let tmp = s.split("=")
+        let (l, r) = (tmp[0], join(tmp[1..^1], "="))
+        return (l.strip(), r)
+
+    proc set_jsobj(s: var JsObject, l, r: string): void =
+        if   l == "nplurals":
+            s["nplurals"] = parseInt(r)
+        elif l == "plural":
+            s["plural"] = cstring(r)
+
+    proc parse_jsobj(s: JsObject): JsObject =
+        new(result)
+        if s.hasOwnProperty("nplurals"):
+            set_jsobj(result, "nplurals",
+                      $s["nplurals"].to(cstring))
+
+    proc parse_array(s: seq[JsObject]): JsObject =
+        new(result)
+        for i in s:
+            if i.is_cstring():
+                let (l, r) = parse_oneterm($i.to(cstring))
+                set_jsobj(result, l, r)
+            elif i.is_array():
+                let (l, r) = ($i[0].to(cstring), $i[1].to(cstring))
+                set_jsobj(result, l, r)
+            else:
+                if i.hasOwnProperty("nplurals"):
+                    set_jsobj(result, "nplurals",
+                              $i["nplurals"].to(cstring))
+                if i.hasOwnProperty("plural"):
+                    result["plural"] = i["plural"]
+
+    proc parse_string(s: cstring): JsObject =
+        new(result)
+        let terms = ($s).split(";")
+        for i in terms:
+            let (l, r) = parse_oneterm(i)
+            set_jsobj(result, l, r)
+
+    let sobj = if   src.is_cstring():
+                parse_string(src.to(cstring))
+               elif src.is_array():
+                parse_array(src.to(seq[JsObject]))
+               else:
+                parse_jsobj(src)
+    let n = if sobj.hasOwnProperty("nplurals"): sobj["nplurals"].to(int)
+            else:                               2
+    let stats = plural.parseExpr($sobj["plural"].to(cstring))
+    return (n, stats)
 
 
 proc parse_json(self: var Catalogue, json: cstring): bool =
@@ -171,6 +233,7 @@ proc parse_json(self: var Catalogue, json: cstring): bool =
             return true
     self.charset = $data["Language-Code"].to(cstring)
     self.domain = $data["Domain"].to(cstring)
+    (self.num_plurals, self.plurals) = parse_plurals(data["Plural-Forms"])
     self.lookup_db = data["lookup"].to(JsAssoc[cstring, JsObject])
     self.loaded = true
 
@@ -229,9 +292,35 @@ proc dgettext_impl*(catalogue: Catalogue;
 
 
 proc dngettext_impl*(catalogue: Catalogue,
+                     msgid, msgid_plural: cstring, num: int,
+                     info: CallInfo): cstring =
+    let plurals = catalogue.lookup_plurals(msgid)
+    if len(plurals) < 1:
+        return msgid
+    echo("dngettext-catalo:", catalogue.plurals)
+    echo("dngettext-lookup:", plurals, ", idx=", num)
+    let idxev = catalogue.plurals.evaluate(num)
+    echo("dngettext-eval1: ", idxev)
+    echo("dngettext-eval1:1: ", catalogue.plurals.evaluate(1))
+    echo("dngettext-eval1:2: ", catalogue.plurals.evaluate(2))
+    let idx = if idxev >= catalogue.num_plurals: 0  # behave as c version
+              elif idxev < 0:                    0
+              else:                              idxev
+    echo("dngettext-eval2: ", idx)
+    var ret = $(if idx < len(plurals): plurals[idx]
+                else:                  plurals[0])
+    echo("dngettext-plurs: ", ret)
+    ret = ret.replace("%d", $num)
+    ret = ret.replace("%u", $num)
+    return cstring(ret)
+
+
+proc dngettext_impl*(catalogue: Catalogue,
                      msgid, msgid_plural: string, num: int,
                      info: CallInfo): string =
-    ""
+    return $dngettext_impl(catalogue,
+                           cstring(msgid), cstring(msgid_plural), num,
+                           info)
 
 
 proc lang_from_url(url: cstring): cstring =
