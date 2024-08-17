@@ -1,0 +1,8 @@
+nimTitle	i18n_header	i18n_header.html	module src/i18n/i18n_header		0
+nim	StringEntry	i18n_header.html#StringEntry	object StringEntry		28
+nim	TableEntry	i18n_header.html#TableEntry	object TableEntry		32
+nim	Catalogue	i18n_header.html#Catalogue	type Catalogue		36
+nim	fallback_locale	i18n_header.html#fallback_locale	const fallback_locale		58
+nim	set_current_langs	i18n_header.html#set_current_langs,string	proc set_current_langs(src = ""): seq[string]		64
+nim	set_current_locale	i18n_header.html#set_current_locale,string	proc set_current_locale(src = ""): string		78
+heading	Nim gettext-like module	i18n_header.html#nim-gettextminuslike-module	 Nim gettext-like module		0

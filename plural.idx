@@ -1,0 +1,25 @@
+nimTitle	plural	plural.html	module src/i18n/private/plural		0
+nim	INVALID	plural.html#INVALID	Operator.INVALID		6
+nim	ADD	plural.html#ADD	Operator.ADD		6
+nim	SUB	plural.html#SUB	Operator.SUB		6
+nim	MOD	plural.html#MOD	Operator.MOD		6
+nim	DIV	plural.html#DIV	Operator.DIV		6
+nim	MUL	plural.html#MUL	Operator.MUL		6
+nim	LE	plural.html#LE	Operator.LE		6
+nim	EQ	plural.html#EQ	Operator.EQ		6
+nim	LT	plural.html#LT	Operator.LT		6
+nim	GT	plural.html#GT	Operator.GT		6
+nim	GE	plural.html#GE	Operator.GE		6
+nim	NE	plural.html#NE	Operator.NE		6
+nim	AND	plural.html#AND	Operator.AND		6
+nim	OR	plural.html#OR	Operator.OR		6
+nim	TERNARY	plural.html#TERNARY	Operator.TERNARY		6
+nim	PARENT_OPEN	plural.html#PARENT_OPEN	Operator.PARENT_OPEN		6
+nim	PARENT_CLOSE	plural.html#PARENT_CLOSE	Operator.PARENT_CLOSE		6
+nim	CONSTANT	plural.html#CONSTANT	Operator.CONSTANT		6
+nim	VARIABLE	plural.html#VARIABLE	Operator.VARIABLE		6
+nim	Operator	plural.html#Operator	enum Operator		6
+nim	State	plural.html#State	object State		9
+nim	`$`	plural.html#$,State	proc `$`(x: State): string		55
+nim	evaluate	plural.html#evaluate,openArray[State],int	proc evaluate(symbols: openArray[State]; value: int): int		65
+nim	parseExpr	plural.html#parseExpr,string	proc parseExpr(str: string): seq[State]		110
