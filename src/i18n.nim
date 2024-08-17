@@ -8,6 +8,9 @@
 
 ## This module provides a gettext-like interface for internationalisation.
 ##
+## - the introduction in [README](index.html)
+## - test results in [testresults.html](testresults.html)
+##
 ## Examples:
 ##
 ## .. code-block:: Nim

@@ -12,4 +12,5 @@ tests/config.nims
 tests/data/nohup.out
 tests/js/*.js
 tests/megatest*
+tmp.md
 
